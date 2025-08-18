@@ -1,0 +1,464 @@
+# Generated from lib\ex_scim\parser\path.ex, do not edit.
+# Generated at 2025-06-23 09:54:47Z.
+
+defmodule ExScim.Parser.Path do
+  @moduledoc false
+
+  import NimbleParsec
+
+  # --------------------------
+  # Helper reducer functions
+  # --------------------------
+
+  def reduce_attr_path([raw]) do
+    case String.split(raw, ":", trim: true) do
+      parts when length(parts) > 1 ->
+        schema = Enum.slice(parts, 0..-2//1) |> Enum.join(":")
+        attr = List.last(parts)
+        %{schema: schema, attribute: attr}
+
+      _ ->
+        %{schema: nil, attribute: raw}
+    end
+  end
+
+  def reduce_attr_with_filter([base, filter]), do: Map.put(base, :filter, filter)
+  def reduce_attr_with_filter([base]), do: base
+
+  def reduce_filter_exp([attr, op, val]) do
+    %{attr: attr, op: op, value: val}
+  end
+
+  def reduce_final_path([base, sub]) do
+    Map.put(base, :sub, sub)
+  end
+
+  def reduce_final_path([base]), do: base
+
+  # --------------------------
+  # Combinators
+  # --------------------------
+
+  defcombinatorp(
+    :attr_path,
+    ascii_string([?a..?z, ?A..?Z, ?0..?9, ?:, ?., ?_, ?-], min: 1)
+    |> reduce({__MODULE__, :reduce_attr_path, []})
+  )
+
+  defcombinatorp(
+    :attr_name,
+    ascii_string([?a..?z, ?A..?Z], 1)
+    |> repeat(ascii_string([?a..?z, ?A..?Z, ?0..?9, ?_, ?-], 1))
+    |> reduce({List, :to_string, []})
+  )
+
+  defcombinatorp(
+    :filter_exp,
+    utf8_string([not: ?]], min: 1)
+    |> reduce({List, :to_string, []})
+  )
+
+  defcombinatorp(
+    :attr_exp,
+    parsec(:attr_path)
+    |> optional(
+      ignore(string("["))
+      |> concat(parsec(:filter_exp))
+      |> ignore(string("]"))
+    )
+    |> reduce({__MODULE__, :reduce_attr_with_filter, []})
+  )
+
+  path =
+    parsec(:attr_exp)
+    |> optional(
+      ignore(string("."))
+      |> concat(parsec(:attr_name))
+    )
+    |> reduce({__MODULE__, :reduce_final_path, []})
+    |> eos()
+
+  @doc """
+  Parses the given `binary` as path.
+
+  Returns `{:ok, [token], rest, context, position, byte_offset}` or
+  `{:error, reason, rest, context, line, byte_offset}` where `position`
+  describes the location of the path (start position) as `{line, offset_to_start_of_line}`.
+
+  To column where the error occurred can be inferred from `byte_offset - offset_to_start_of_line`.
+
+  ## Options
+
+    * `:byte_offset` - the byte offset for the whole binary, defaults to 0
+    * `:line` - the line and the byte offset into that line, defaults to `{1, byte_offset}`
+    * `:context` - the initial context value. It will be converted to a map
+
+  """
+  @spec path(binary, keyword) ::
+          {:ok, [term], rest, context, line, byte_offset}
+          | {:error, reason, rest, context, line, byte_offset}
+        when line: {pos_integer, byte_offset},
+             byte_offset: non_neg_integer,
+             rest: binary,
+             reason: String.t(),
+             context: map
+  def path(binary, opts \\ []) when is_binary(binary) do
+    context = Map.new(Keyword.get(opts, :context, []))
+    byte_offset = Keyword.get(opts, :byte_offset, 0)
+
+    line =
+      case Keyword.get(opts, :line, 1) do
+        {_, _} = line -> line
+        line -> {line, byte_offset}
+      end
+
+    case path__0(binary, [], [], context, line, byte_offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        {:ok, :lists.reverse(acc), rest, context, line, offset}
+
+      {:error, _, _, _, _, _} = error ->
+        error
+    end
+  end
+
+  defp path__0(rest, acc, stack, context, line, offset) do
+    path__1(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp path__1(rest, acc, stack, context, line, offset) do
+    case attr_exp__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} -> path__2(rest, acc, stack, context, line, offset)
+      {:error, _, _, _, _, _} = error -> error
+    end
+  end
+
+  defp path__2(rest, acc, stack, context, line, offset) do
+    path__6(rest, [], [{rest, context, line, offset}, acc | stack], context, line, offset)
+  end
+
+  defp path__4(rest, acc, [_, previous_acc | stack], context, line, offset) do
+    path__3(rest, acc ++ previous_acc, stack, context, line, offset)
+  end
+
+  defp path__5(_, _, [{rest, context, line, offset} | _] = stack, _, _, _) do
+    path__4(rest, [], stack, context, line, offset)
+  end
+
+  defp path__6(<<".", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    path__7(rest, [] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp path__6(rest, acc, stack, context, line, offset) do
+    path__5(rest, acc, stack, context, line, offset)
+  end
+
+  defp path__7(rest, acc, stack, context, line, offset) do
+    case attr_name__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} -> path__8(rest, acc, stack, context, line, offset)
+      {:error, _, _, _, _, _} = error -> path__5(rest, acc, stack, context, line, offset)
+    end
+  end
+
+  defp path__8(rest, acc, [_, previous_acc | stack], context, line, offset) do
+    path__3(rest, acc ++ previous_acc, stack, context, line, offset)
+  end
+
+  defp path__3(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    path__9(
+      rest,
+      [ExScim.Parser.Path.reduce_final_path(:lists.reverse(user_acc))] ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp path__9(<<""::binary>>, acc, stack, context, comb__line, comb__offset) do
+    path__10("", [] ++ acc, stack, context, comb__line, comb__offset)
+  end
+
+  defp path__9(rest, _acc, _stack, context, line, offset) do
+    {:error, "expected end of string", rest, context, line, offset}
+  end
+
+  defp path__10(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+
+  defp attr_exp__0(rest, acc, stack, context, line, offset) do
+    attr_exp__1(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp attr_exp__1(rest, acc, stack, context, line, offset) do
+    case attr_path__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        attr_exp__2(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        error
+    end
+  end
+
+  defp attr_exp__2(rest, acc, stack, context, line, offset) do
+    attr_exp__6(rest, [], [{rest, context, line, offset}, acc | stack], context, line, offset)
+  end
+
+  defp attr_exp__4(rest, acc, [_, previous_acc | stack], context, line, offset) do
+    attr_exp__3(rest, acc ++ previous_acc, stack, context, line, offset)
+  end
+
+  defp attr_exp__5(_, _, [{rest, context, line, offset} | _] = stack, _, _, _) do
+    attr_exp__4(rest, [], stack, context, line, offset)
+  end
+
+  defp attr_exp__6(<<"[", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    attr_exp__7(rest, [] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp attr_exp__6(rest, acc, stack, context, line, offset) do
+    attr_exp__5(rest, acc, stack, context, line, offset)
+  end
+
+  defp attr_exp__7(rest, acc, stack, context, line, offset) do
+    case filter_exp__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        attr_exp__8(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        attr_exp__5(rest, acc, stack, context, line, offset)
+    end
+  end
+
+  defp attr_exp__8(<<"]", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    attr_exp__9(rest, [] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp attr_exp__8(rest, acc, stack, context, line, offset) do
+    attr_exp__5(rest, acc, stack, context, line, offset)
+  end
+
+  defp attr_exp__9(rest, acc, [_, previous_acc | stack], context, line, offset) do
+    attr_exp__3(rest, acc ++ previous_acc, stack, context, line, offset)
+  end
+
+  defp attr_exp__3(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    attr_exp__10(
+      rest,
+      [ExScim.Parser.Path.reduce_attr_with_filter(:lists.reverse(user_acc))] ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp attr_exp__10(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+
+  defp filter_exp__0(rest, acc, stack, context, line, offset) do
+    filter_exp__1(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp filter_exp__1(rest, acc, stack, context, line, offset) do
+    filter_exp__2(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp filter_exp__2(<<x0::utf8, rest::binary>>, acc, stack, context, comb__line, comb__offset)
+       when x0 !== 93 do
+    filter_exp__3(
+      rest,
+      [<<x0::utf8>>] ++ acc,
+      stack,
+      context,
+      (
+        line = comb__line
+
+        case x0 do
+          10 -> {elem(line, 0) + 1, comb__offset + byte_size(<<x0::utf8>>)}
+          _ -> line
+        end
+      ),
+      comb__offset + byte_size(<<x0::utf8>>)
+    )
+  end
+
+  defp filter_exp__2(rest, _acc, _stack, context, line, offset) do
+    {:error, "expected utf8 codepoint, and not equal to \"]\"", rest, context, line, offset}
+  end
+
+  defp filter_exp__3(<<x0::utf8, rest::binary>>, acc, stack, context, comb__line, comb__offset)
+       when x0 !== 93 do
+    filter_exp__5(
+      rest,
+      [x0] ++ acc,
+      stack,
+      context,
+      (
+        line = comb__line
+
+        case x0 do
+          10 -> {elem(line, 0) + 1, comb__offset + byte_size(<<x0::utf8>>)}
+          _ -> line
+        end
+      ),
+      comb__offset + byte_size(<<x0::utf8>>)
+    )
+  end
+
+  defp filter_exp__3(rest, acc, stack, context, line, offset) do
+    filter_exp__4(rest, acc, stack, context, line, offset)
+  end
+
+  defp filter_exp__5(rest, acc, stack, context, line, offset) do
+    filter_exp__3(rest, acc, stack, context, line, offset)
+  end
+
+  defp filter_exp__4(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    filter_exp__6(
+      rest,
+      [List.to_string(:lists.reverse(user_acc))] ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp filter_exp__6(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    filter_exp__7(
+      rest,
+      [List.to_string(:lists.reverse(user_acc))] ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp filter_exp__7(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+
+  defp attr_name__0(rest, acc, stack, context, line, offset) do
+    attr_name__1(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp attr_name__1(<<x0, rest::binary>>, acc, stack, context, comb__line, comb__offset)
+       when (x0 >= 97 and x0 <= 122) or (x0 >= 65 and x0 <= 90) do
+    attr_name__2(rest, [<<x0::integer>>] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp attr_name__1(rest, _acc, _stack, context, line, offset) do
+    {:error,
+     "expected ASCII character in the range \"a\" to \"z\" or in the range \"A\" to \"Z\"", rest,
+     context, line, offset}
+  end
+
+  defp attr_name__2(<<x0, rest::binary>>, acc, stack, context, comb__line, comb__offset)
+       when (x0 >= 97 and x0 <= 122) or (x0 >= 65 and x0 <= 90) or (x0 >= 48 and x0 <= 57) or
+              x0 === 95 or
+              x0 === 45 do
+    attr_name__4(rest, [<<x0::integer>>] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp attr_name__2(rest, acc, stack, context, line, offset) do
+    attr_name__3(rest, acc, stack, context, line, offset)
+  end
+
+  defp attr_name__4(rest, acc, stack, context, line, offset) do
+    attr_name__2(rest, acc, stack, context, line, offset)
+  end
+
+  defp attr_name__3(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    attr_name__5(
+      rest,
+      [List.to_string(:lists.reverse(user_acc))] ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp attr_name__5(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+
+  defp attr_path__0(rest, acc, stack, context, line, offset) do
+    attr_path__1(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp attr_path__1(rest, acc, stack, context, line, offset) do
+    attr_path__2(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp attr_path__2(<<x0, rest::binary>>, acc, stack, context, comb__line, comb__offset)
+       when (x0 >= 97 and x0 <= 122) or (x0 >= 65 and x0 <= 90) or (x0 >= 48 and x0 <= 57) or
+              x0 === 58 or
+              x0 === 46 or x0 === 95 or x0 === 45 do
+    attr_path__3(rest, [<<x0::integer>>] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp attr_path__2(rest, _acc, _stack, context, line, offset) do
+    {:error,
+     "expected ASCII character in the range \"a\" to \"z\" or in the range \"A\" to \"Z\" or in the range \"0\" to \"9\" or equal to \":\" or equal to \".\" or equal to \"_\" or equal to \"-\"",
+     rest, context, line, offset}
+  end
+
+  defp attr_path__3(<<x0, rest::binary>>, acc, stack, context, comb__line, comb__offset)
+       when (x0 >= 97 and x0 <= 122) or (x0 >= 65 and x0 <= 90) or (x0 >= 48 and x0 <= 57) or
+              x0 === 58 or
+              x0 === 46 or x0 === 95 or x0 === 45 do
+    attr_path__5(rest, [x0] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp attr_path__3(rest, acc, stack, context, line, offset) do
+    attr_path__4(rest, acc, stack, context, line, offset)
+  end
+
+  defp attr_path__5(rest, acc, stack, context, line, offset) do
+    attr_path__3(rest, acc, stack, context, line, offset)
+  end
+
+  defp attr_path__4(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    attr_path__6(
+      rest,
+      [List.to_string(:lists.reverse(user_acc))] ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp attr_path__6(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    attr_path__7(
+      rest,
+      [ExScim.Parser.Path.reduce_attr_path(:lists.reverse(user_acc))] ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp attr_path__7(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+end

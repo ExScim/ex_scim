@@ -1,0 +1,1685 @@
+# Generated from lib\ex_scim\parser\filter.ex, do not edit.
+# Generated at 2025-06-23 09:54:39Z.
+
+defmodule ExScim.Parser.Filter do
+  @moduledoc false
+  import NimbleParsec
+  import ExScim.Parser.Lexical
+
+  # --------------------------
+  # Helper reducer functions
+  # --------------------------
+
+  def to_op(op), do: String.downcase(op) |> String.to_atom()
+
+  def to_comp_ast([attr, op, val]), do: {to_op(op), attr, val}
+  def to_present_ast(attr), do: {:pr, attr}
+  def to_not_ast(expr), do: {:not, expr}
+
+  def to_comp_ast_wrapped([{_, attr}, {_, op}, {_, val}]) do
+    {to_op(op), attr, val}
+  end
+
+  def reduce_logical_chain([head | rest]) do
+    Enum.chunk_every(rest, 2)
+    |> Enum.reduce(head, fn [op, right], acc -> {op, acc, right} end)
+  end
+
+  def join_path([first | rest]), do: Enum.join([first | rest], ".")
+
+  def to_attribute_filter_ast([target | filter]), do: {target, filter}
+
+  # --------------------------
+  # Combinators
+  # --------------------------
+
+  defcombinatorp(
+    :compare_op,
+    choice(
+      Enum.map(
+        ~w(eq ne co sw ew gt lt ge le Eq Ne Co Sw Ew Gt Lt Ge Le eQ nE cO sW eW gT lT gE lE EQ NE CO SW EW GT LT GE LE),
+        &string/1
+      )
+    )
+  )
+
+  defcombinatorp(
+    :attr_char,
+    ascii_char([?a..?z, ?A..?Z, ?0..?9, ?_, ?-, ?:, ?/])
+  )
+
+  defcombinatorp(
+    :attr_name,
+    ascii_string([?a..?z, ?A..?Z, ?0..?9, ?_, ?-, ?:, ?/], min: 1)
+  )
+
+  defcombinatorp(
+    :attr_path,
+    parsec(:attr_name)
+    |> repeat(
+      ignore(string("."))
+      |> concat(parsec(:attr_name))
+    )
+    |> reduce({__MODULE__, :join_path, []})
+  )
+
+  defcombinatorp(
+    :filtered_attr_expr,
+    parsec(:attr_path)
+    |> ignore(string("["))
+    |> concat(parsec(:val_filter))
+    |> ignore(string("]"))
+    |> reduce({__MODULE__, :to_attribute_filter_ast, []})
+  )
+
+  defcombinatorp(
+    :attr_exp,
+    parsec(:attr_path)
+    |> optional(
+      ignore(string("["))
+      |> concat(parsec(:val_filter))
+      |> ignore(string("]"))
+    )
+  )
+
+  defcombinatorp(
+    :logical_op,
+    ignore(wsp())
+    |> choice([
+      string("and"),
+      string("And"),
+      string("aNd"),
+      string("anD"),
+      string("ANd"),
+      string("aND"),
+      string("AnD"),
+      string("AND"),
+      string("or"),
+      string("Or"),
+      string("oR"),
+      string("OR")
+    ])
+    |> map({__MODULE__, :to_op, []})
+    |> ignore(wsp())
+  )
+
+  defcombinatorp(
+    :comp_exp,
+    parsec(:attr_exp)
+    |> map({List, :wrap, []})
+    |> ignore(wsp())
+    |> concat(parsec(:compare_op) |> map({List, :wrap, []}))
+    |> ignore(wsp())
+    |> concat(comp_value() |> map({List, :wrap, []}))
+    |> reduce({Enum, :concat, []})
+    |> map({__MODULE__, :to_comp_ast, []})
+  )
+
+  defcombinatorp(
+    :present_exp,
+    parsec(:attr_exp)
+    |> ignore(wsp())
+    |> ignore(choice([string("pr"), string("Pr"), string("pR"), string("PR")]))
+    |> map({__MODULE__, :to_present_ast, []})
+  )
+
+  defcombinatorp(
+    :not_exp,
+    ignore(
+      choice([
+        string("not"),
+        string("Not"),
+        string("nOt"),
+        string("noT"),
+        string("NOt"),
+        string("nOT"),
+        string("NoT"),
+        string("NOT")
+      ])
+    )
+    |> ignore(wsp())
+    |> ignore(string("("))
+    |> concat(parsec(:val_filter))
+    |> ignore(string(")"))
+    |> map({__MODULE__, :to_not_ast, []})
+  )
+
+  defcombinatorp(
+    :paren_exp,
+    ignore(string("("))
+    |> concat(parsec(:val_filter))
+    |> ignore(string(")"))
+  )
+
+  # primary_expr ::= basic atomic expressions
+  defcombinatorp(
+    :primary_expr,
+    choice([
+      parsec(:filtered_attr_expr),
+      parsec(:comp_exp),
+      parsec(:present_exp),
+      parsec(:not_exp),
+      parsec(:paren_exp)
+    ])
+  )
+
+  # and_expr ::= primary_expr ("and" primary_expr)*
+  defcombinatorp(
+    :and_expr,
+    parsec(:primary_expr)
+    |> repeat(parsec(:logical_op) |> concat(parsec(:primary_expr)))
+    |> reduce({__MODULE__, :reduce_logical_chain, []})
+  )
+
+  # or_expr ::= and_expr ("or" and_expr)*
+  defcombinatorp(
+    :or_expr,
+    parsec(:and_expr)
+    |> repeat(parsec(:logical_op) |> concat(parsec(:and_expr)))
+    |> reduce({__MODULE__, :reduce_logical_chain, []})
+  )
+
+  defcombinatorp(:val_filter, parsec(:or_expr))
+
+  @doc """
+  Parses the given `binary` as filter.
+
+  Returns `{:ok, [token], rest, context, position, byte_offset}` or
+  `{:error, reason, rest, context, line, byte_offset}` where `position`
+  describes the location of the filter (start position) as `{line, offset_to_start_of_line}`.
+
+  To column where the error occurred can be inferred from `byte_offset - offset_to_start_of_line`.
+
+  ## Options
+
+    * `:byte_offset` - the byte offset for the whole binary, defaults to 0
+    * `:line` - the line and the byte offset into that line, defaults to `{1, byte_offset}`
+    * `:context` - the initial context value. It will be converted to a map
+
+  """
+  @spec filter(binary, keyword) ::
+          {:ok, [term], rest, context, line, byte_offset}
+          | {:error, reason, rest, context, line, byte_offset}
+        when line: {pos_integer, byte_offset},
+             byte_offset: non_neg_integer,
+             rest: binary,
+             reason: String.t(),
+             context: map
+  def filter(binary, opts \\ []) when is_binary(binary) do
+    context = Map.new(Keyword.get(opts, :context, []))
+    byte_offset = Keyword.get(opts, :byte_offset, 0)
+
+    line =
+      case Keyword.get(opts, :line, 1) do
+        {_, _} = line -> line
+        line -> {line, byte_offset}
+      end
+
+    case filter__0(binary, [], [], context, line, byte_offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        {:ok, :lists.reverse(acc), rest, context, line, offset}
+
+      {:error, _, _, _, _, _} = error ->
+        error
+    end
+  end
+
+  defp filter__0(rest, acc, stack, context, line, offset) do
+    case val_filter__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        filter__1(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        error
+    end
+  end
+
+  defp filter__1(<<""::binary>>, acc, stack, context, comb__line, comb__offset) do
+    filter__2("", [] ++ acc, stack, context, comb__line, comb__offset)
+  end
+
+  defp filter__1(rest, _acc, _stack, context, line, offset) do
+    {:error, "expected end of string", rest, context, line, offset}
+  end
+
+  defp filter__2(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+
+  defp val_filter__0(rest, acc, stack, context, line, offset) do
+    case or_expr__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        val_filter__1(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        error
+    end
+  end
+
+  defp val_filter__1(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+
+  defp or_expr__0(rest, acc, stack, context, line, offset) do
+    or_expr__1(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp or_expr__1(rest, acc, stack, context, line, offset) do
+    case and_expr__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        or_expr__2(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        error
+    end
+  end
+
+  defp or_expr__2(rest, acc, stack, context, line, offset) do
+    or_expr__4(rest, [], [{rest, acc, context, line, offset} | stack], context, line, offset)
+  end
+
+  defp or_expr__4(rest, acc, stack, context, line, offset) do
+    case logical_op__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        or_expr__5(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        or_expr__3(rest, acc, stack, context, line, offset)
+    end
+  end
+
+  defp or_expr__5(rest, acc, stack, context, line, offset) do
+    case and_expr__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        or_expr__6(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        or_expr__3(rest, acc, stack, context, line, offset)
+    end
+  end
+
+  defp or_expr__3(_, _, [{rest, acc, context, line, offset} | stack], _, _, _) do
+    or_expr__7(rest, acc, stack, context, line, offset)
+  end
+
+  defp or_expr__6(
+         inner_rest,
+         inner_acc,
+         [{rest, acc, context, line, offset} | stack],
+         inner_context,
+         inner_line,
+         inner_offset
+       ) do
+    _ = {rest, acc, context, line, offset}
+
+    or_expr__4(
+      inner_rest,
+      [],
+      [{inner_rest, inner_acc ++ acc, inner_context, inner_line, inner_offset} | stack],
+      inner_context,
+      inner_line,
+      inner_offset
+    )
+  end
+
+  defp or_expr__7(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    or_expr__8(
+      rest,
+      [ExScim.Parser.Filter.reduce_logical_chain(:lists.reverse(user_acc))] ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp or_expr__8(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+
+  defp and_expr__0(rest, acc, stack, context, line, offset) do
+    and_expr__1(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp and_expr__1(rest, acc, stack, context, line, offset) do
+    case primary_expr__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        and_expr__2(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        error
+    end
+  end
+
+  defp and_expr__2(rest, acc, stack, context, line, offset) do
+    and_expr__4(rest, [], [{rest, acc, context, line, offset} | stack], context, line, offset)
+  end
+
+  defp and_expr__4(rest, acc, stack, context, line, offset) do
+    case logical_op__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        and_expr__5(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        and_expr__3(rest, acc, stack, context, line, offset)
+    end
+  end
+
+  defp and_expr__5(rest, acc, stack, context, line, offset) do
+    case primary_expr__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        and_expr__6(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        and_expr__3(rest, acc, stack, context, line, offset)
+    end
+  end
+
+  defp and_expr__3(_, _, [{rest, acc, context, line, offset} | stack], _, _, _) do
+    and_expr__7(rest, acc, stack, context, line, offset)
+  end
+
+  defp and_expr__6(
+         inner_rest,
+         inner_acc,
+         [{rest, acc, context, line, offset} | stack],
+         inner_context,
+         inner_line,
+         inner_offset
+       ) do
+    _ = {rest, acc, context, line, offset}
+
+    and_expr__4(
+      inner_rest,
+      [],
+      [{inner_rest, inner_acc ++ acc, inner_context, inner_line, inner_offset} | stack],
+      inner_context,
+      inner_line,
+      inner_offset
+    )
+  end
+
+  defp and_expr__7(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    and_expr__8(
+      rest,
+      [ExScim.Parser.Filter.reduce_logical_chain(:lists.reverse(user_acc))] ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp and_expr__8(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+
+  defp primary_expr__0(rest, acc, stack, context, line, offset) do
+    primary_expr__14(
+      rest,
+      [],
+      [{rest, context, line, offset}, acc | stack],
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp primary_expr__2(rest, acc, stack, context, line, offset) do
+    case paren_exp__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        primary_expr__3(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        error
+    end
+  end
+
+  defp primary_expr__3(rest, acc, [_, previous_acc | stack], context, line, offset) do
+    primary_expr__1(rest, acc ++ previous_acc, stack, context, line, offset)
+  end
+
+  defp primary_expr__4(_, _, [{rest, context, line, offset} | _] = stack, _, _, _) do
+    primary_expr__2(rest, [], stack, context, line, offset)
+  end
+
+  defp primary_expr__5(rest, acc, stack, context, line, offset) do
+    case not_exp__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        primary_expr__6(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        primary_expr__4(rest, acc, stack, context, line, offset)
+    end
+  end
+
+  defp primary_expr__6(rest, acc, [_, previous_acc | stack], context, line, offset) do
+    primary_expr__1(rest, acc ++ previous_acc, stack, context, line, offset)
+  end
+
+  defp primary_expr__7(_, _, [{rest, context, line, offset} | _] = stack, _, _, _) do
+    primary_expr__5(rest, [], stack, context, line, offset)
+  end
+
+  defp primary_expr__8(rest, acc, stack, context, line, offset) do
+    case present_exp__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        primary_expr__9(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        primary_expr__7(rest, acc, stack, context, line, offset)
+    end
+  end
+
+  defp primary_expr__9(rest, acc, [_, previous_acc | stack], context, line, offset) do
+    primary_expr__1(rest, acc ++ previous_acc, stack, context, line, offset)
+  end
+
+  defp primary_expr__10(_, _, [{rest, context, line, offset} | _] = stack, _, _, _) do
+    primary_expr__8(rest, [], stack, context, line, offset)
+  end
+
+  defp primary_expr__11(rest, acc, stack, context, line, offset) do
+    case comp_exp__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        primary_expr__12(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        primary_expr__10(rest, acc, stack, context, line, offset)
+    end
+  end
+
+  defp primary_expr__12(rest, acc, [_, previous_acc | stack], context, line, offset) do
+    primary_expr__1(rest, acc ++ previous_acc, stack, context, line, offset)
+  end
+
+  defp primary_expr__13(_, _, [{rest, context, line, offset} | _] = stack, _, _, _) do
+    primary_expr__11(rest, [], stack, context, line, offset)
+  end
+
+  defp primary_expr__14(rest, acc, stack, context, line, offset) do
+    case filtered_attr_expr__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        primary_expr__15(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        primary_expr__13(rest, acc, stack, context, line, offset)
+    end
+  end
+
+  defp primary_expr__15(rest, acc, [_, previous_acc | stack], context, line, offset) do
+    primary_expr__1(rest, acc ++ previous_acc, stack, context, line, offset)
+  end
+
+  defp primary_expr__1(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+
+  defp paren_exp__0(<<"(", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    paren_exp__1(rest, [] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp paren_exp__0(rest, _acc, _stack, context, line, offset) do
+    {:error, "expected string \"(\"", rest, context, line, offset}
+  end
+
+  defp paren_exp__1(rest, acc, stack, context, line, offset) do
+    case val_filter__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        paren_exp__2(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        error
+    end
+  end
+
+  defp paren_exp__2(<<")", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    paren_exp__3(rest, [] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp paren_exp__2(rest, _acc, _stack, context, line, offset) do
+    {:error, "expected string \")\"", rest, context, line, offset}
+  end
+
+  defp paren_exp__3(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+
+  defp not_exp__0(rest, acc, stack, context, line, offset) do
+    not_exp__1(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp not_exp__1(rest, acc, stack, context, line, offset) do
+    not_exp__2(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp not_exp__2(<<"not", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    not_exp__3(rest, acc, stack, context, comb__line, comb__offset + 3)
+  end
+
+  defp not_exp__2(<<"Not", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    not_exp__3(rest, acc, stack, context, comb__line, comb__offset + 3)
+  end
+
+  defp not_exp__2(<<"nOt", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    not_exp__3(rest, acc, stack, context, comb__line, comb__offset + 3)
+  end
+
+  defp not_exp__2(<<"noT", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    not_exp__3(rest, acc, stack, context, comb__line, comb__offset + 3)
+  end
+
+  defp not_exp__2(<<"NOt", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    not_exp__3(rest, acc, stack, context, comb__line, comb__offset + 3)
+  end
+
+  defp not_exp__2(<<"nOT", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    not_exp__3(rest, acc, stack, context, comb__line, comb__offset + 3)
+  end
+
+  defp not_exp__2(<<"NoT", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    not_exp__3(rest, acc, stack, context, comb__line, comb__offset + 3)
+  end
+
+  defp not_exp__2(<<"NOT", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    not_exp__3(rest, acc, stack, context, comb__line, comb__offset + 3)
+  end
+
+  defp not_exp__2(rest, _acc, _stack, context, line, offset) do
+    {:error,
+     "expected string \"not\" or string \"Not\" or string \"nOt\" or string \"noT\" or string \"NOt\" or string \"nOT\" or string \"NoT\" or string \"NOT\"",
+     rest, context, line, offset}
+  end
+
+  defp not_exp__3(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+    not_exp__4(rest, [] ++ acc, stack, context, line, offset)
+  end
+
+  defp not_exp__4(rest, acc, stack, context, line, offset) do
+    not_exp__5(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp not_exp__5(<<x0, rest::binary>>, acc, stack, context, comb__line, comb__offset)
+       when x0 === 32 or x0 === 9 or x0 === 10 or x0 === 13 do
+    not_exp__7(
+      rest,
+      acc,
+      stack,
+      context,
+      (
+        line = comb__line
+
+        case x0 do
+          10 -> {elem(line, 0) + 1, comb__offset + 1}
+          _ -> line
+        end
+      ),
+      comb__offset + 1
+    )
+  end
+
+  defp not_exp__5(rest, acc, stack, context, line, offset) do
+    not_exp__6(rest, acc, stack, context, line, offset)
+  end
+
+  defp not_exp__7(rest, acc, stack, context, line, offset) do
+    not_exp__5(rest, acc, stack, context, line, offset)
+  end
+
+  defp not_exp__6(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+    not_exp__8(rest, [] ++ acc, stack, context, line, offset)
+  end
+
+  defp not_exp__8(<<"(", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    not_exp__9(rest, [] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp not_exp__8(rest, _acc, _stack, context, line, offset) do
+    {:error, "expected string \"(\"", rest, context, line, offset}
+  end
+
+  defp not_exp__9(rest, acc, stack, context, line, offset) do
+    case val_filter__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        not_exp__10(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        error
+    end
+  end
+
+  defp not_exp__10(<<")", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    not_exp__11(rest, [] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp not_exp__10(rest, _acc, _stack, context, line, offset) do
+    {:error, "expected string \")\"", rest, context, line, offset}
+  end
+
+  defp not_exp__11(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    not_exp__12(
+      rest,
+      Enum.map(user_acc, fn var -> ExScim.Parser.Filter.to_not_ast(var) end) ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp not_exp__12(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+
+  defp present_exp__0(rest, acc, stack, context, line, offset) do
+    present_exp__1(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp present_exp__1(rest, acc, stack, context, line, offset) do
+    case attr_exp__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        present_exp__2(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        error
+    end
+  end
+
+  defp present_exp__2(rest, acc, stack, context, line, offset) do
+    present_exp__3(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp present_exp__3(<<x0, rest::binary>>, acc, stack, context, comb__line, comb__offset)
+       when x0 === 32 or x0 === 9 or x0 === 10 or x0 === 13 do
+    present_exp__5(
+      rest,
+      acc,
+      stack,
+      context,
+      (
+        line = comb__line
+
+        case x0 do
+          10 -> {elem(line, 0) + 1, comb__offset + 1}
+          _ -> line
+        end
+      ),
+      comb__offset + 1
+    )
+  end
+
+  defp present_exp__3(rest, acc, stack, context, line, offset) do
+    present_exp__4(rest, acc, stack, context, line, offset)
+  end
+
+  defp present_exp__5(rest, acc, stack, context, line, offset) do
+    present_exp__3(rest, acc, stack, context, line, offset)
+  end
+
+  defp present_exp__4(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+    present_exp__6(rest, [] ++ acc, stack, context, line, offset)
+  end
+
+  defp present_exp__6(rest, acc, stack, context, line, offset) do
+    present_exp__7(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp present_exp__7(<<"pr", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    present_exp__8(rest, acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp present_exp__7(<<"Pr", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    present_exp__8(rest, acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp present_exp__7(<<"pR", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    present_exp__8(rest, acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp present_exp__7(<<"PR", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    present_exp__8(rest, acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp present_exp__7(rest, _acc, _stack, context, line, offset) do
+    {:error, "expected string \"pr\" or string \"Pr\" or string \"pR\" or string \"PR\"", rest,
+     context, line, offset}
+  end
+
+  defp present_exp__8(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+    present_exp__9(rest, [] ++ acc, stack, context, line, offset)
+  end
+
+  defp present_exp__9(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    present_exp__10(
+      rest,
+      Enum.map(user_acc, fn var -> ExScim.Parser.Filter.to_present_ast(var) end) ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp present_exp__10(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+
+  defp comp_exp__0(rest, acc, stack, context, line, offset) do
+    comp_exp__1(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp comp_exp__1(rest, acc, stack, context, line, offset) do
+    comp_exp__2(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp comp_exp__2(rest, acc, stack, context, line, offset) do
+    comp_exp__3(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp comp_exp__3(rest, acc, stack, context, line, offset) do
+    case attr_exp__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        comp_exp__4(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        error
+    end
+  end
+
+  defp comp_exp__4(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    comp_exp__5(
+      rest,
+      Enum.map(user_acc, fn var -> List.wrap(var) end) ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp comp_exp__5(rest, acc, stack, context, line, offset) do
+    comp_exp__6(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp comp_exp__6(<<x0, rest::binary>>, acc, stack, context, comb__line, comb__offset)
+       when x0 === 32 or x0 === 9 or x0 === 10 or x0 === 13 do
+    comp_exp__8(
+      rest,
+      acc,
+      stack,
+      context,
+      (
+        line = comb__line
+
+        case x0 do
+          10 -> {elem(line, 0) + 1, comb__offset + 1}
+          _ -> line
+        end
+      ),
+      comb__offset + 1
+    )
+  end
+
+  defp comp_exp__6(rest, acc, stack, context, line, offset) do
+    comp_exp__7(rest, acc, stack, context, line, offset)
+  end
+
+  defp comp_exp__8(rest, acc, stack, context, line, offset) do
+    comp_exp__6(rest, acc, stack, context, line, offset)
+  end
+
+  defp comp_exp__7(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+    comp_exp__9(rest, [] ++ acc, stack, context, line, offset)
+  end
+
+  defp comp_exp__9(rest, acc, stack, context, line, offset) do
+    comp_exp__10(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp comp_exp__10(rest, acc, stack, context, line, offset) do
+    case compare_op__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        comp_exp__11(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        error
+    end
+  end
+
+  defp comp_exp__11(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    comp_exp__12(
+      rest,
+      Enum.map(user_acc, fn var -> List.wrap(var) end) ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp comp_exp__12(rest, acc, stack, context, line, offset) do
+    comp_exp__13(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp comp_exp__13(<<x0, rest::binary>>, acc, stack, context, comb__line, comb__offset)
+       when x0 === 32 or x0 === 9 or x0 === 10 or x0 === 13 do
+    comp_exp__15(
+      rest,
+      acc,
+      stack,
+      context,
+      (
+        line = comb__line
+
+        case x0 do
+          10 -> {elem(line, 0) + 1, comb__offset + 1}
+          _ -> line
+        end
+      ),
+      comb__offset + 1
+    )
+  end
+
+  defp comp_exp__13(rest, acc, stack, context, line, offset) do
+    comp_exp__14(rest, acc, stack, context, line, offset)
+  end
+
+  defp comp_exp__15(rest, acc, stack, context, line, offset) do
+    comp_exp__13(rest, acc, stack, context, line, offset)
+  end
+
+  defp comp_exp__14(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+    comp_exp__16(rest, [] ++ acc, stack, context, line, offset)
+  end
+
+  defp comp_exp__16(rest, acc, stack, context, line, offset) do
+    comp_exp__17(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp comp_exp__17(rest, acc, stack, context, line, offset) do
+    comp_exp__40(rest, [], [{rest, context, line, offset}, acc | stack], context, line, offset)
+  end
+
+  defp comp_exp__19(rest, acc, stack, context, line, offset) do
+    comp_exp__20(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp comp_exp__20(<<x0, rest::binary>>, acc, stack, context, comb__line, comb__offset)
+       when (x0 >= 97 and x0 <= 122) or (x0 >= 65 and x0 <= 90) do
+    comp_exp__21(rest, [<<x0::integer>>] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp comp_exp__20(rest, _acc, _stack, context, line, offset) do
+    {:error,
+     "expected string \"false\" or string \"true\" or string \"null\" or string \"\\\"\", followed by utf8 codepoint, and not equal to \"\\\"\", followed by string \"\\\"\" or ASCII character in the range \"a\" to \"z\" or in the range \"A\" to \"Z\", followed by ASCII character in the range \"a\" to \"z\" or in the range \"A\" to \"Z\" or in the range \"0\" to \"9\" or equal to \"-\" or equal to \"_\"",
+     rest, context, line, offset}
+  end
+
+  defp comp_exp__21(<<x0, rest::binary>>, acc, stack, context, comb__line, comb__offset)
+       when (x0 >= 97 and x0 <= 122) or (x0 >= 65 and x0 <= 90) or (x0 >= 48 and x0 <= 57) or
+              x0 === 45 or
+              x0 === 95 do
+    comp_exp__23(rest, [<<x0::integer>>] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp comp_exp__21(rest, acc, stack, context, line, offset) do
+    comp_exp__22(rest, acc, stack, context, line, offset)
+  end
+
+  defp comp_exp__23(rest, acc, stack, context, line, offset) do
+    comp_exp__21(rest, acc, stack, context, line, offset)
+  end
+
+  defp comp_exp__22(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    comp_exp__24(
+      rest,
+      [Enum.join(:lists.reverse(user_acc), "")] ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp comp_exp__24(rest, acc, [_, previous_acc | stack], context, line, offset) do
+    comp_exp__18(rest, acc ++ previous_acc, stack, context, line, offset)
+  end
+
+  defp comp_exp__25(_, _, [{rest, context, line, offset} | _] = stack, _, _, _) do
+    comp_exp__19(rest, [], stack, context, line, offset)
+  end
+
+  defp comp_exp__26(rest, acc, stack, context, line, offset) do
+    comp_exp__27(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp comp_exp__27(<<"\"", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    comp_exp__28(rest, [] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp comp_exp__27(rest, _acc, stack, context, line, offset) do
+    [acc | stack] = stack
+    comp_exp__25(rest, acc, stack, context, line, offset)
+  end
+
+  defp comp_exp__28(<<x0::utf8, rest::binary>>, acc, stack, context, comb__line, comb__offset)
+       when x0 !== 34 do
+    comp_exp__30(
+      rest,
+      [x0] ++ acc,
+      stack,
+      context,
+      (
+        line = comb__line
+
+        case x0 do
+          10 -> {elem(line, 0) + 1, comb__offset + byte_size(<<x0::utf8>>)}
+          _ -> line
+        end
+      ),
+      comb__offset + byte_size(<<x0::utf8>>)
+    )
+  end
+
+  defp comp_exp__28(rest, acc, stack, context, line, offset) do
+    comp_exp__29(rest, acc, stack, context, line, offset)
+  end
+
+  defp comp_exp__30(rest, acc, stack, context, line, offset) do
+    comp_exp__28(rest, acc, stack, context, line, offset)
+  end
+
+  defp comp_exp__29(<<"\"", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    comp_exp__31(rest, [] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp comp_exp__29(rest, _acc, stack, context, line, offset) do
+    [acc | stack] = stack
+    comp_exp__25(rest, acc, stack, context, line, offset)
+  end
+
+  defp comp_exp__31(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    comp_exp__32(
+      rest,
+      [List.to_string(:lists.reverse(user_acc))] ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp comp_exp__32(rest, acc, [_, previous_acc | stack], context, line, offset) do
+    comp_exp__18(rest, acc ++ previous_acc, stack, context, line, offset)
+  end
+
+  defp comp_exp__33(_, _, [{rest, context, line, offset} | _] = stack, _, _, _) do
+    comp_exp__26(rest, [], stack, context, line, offset)
+  end
+
+  defp comp_exp__34(<<"null", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    comp_exp__35(rest, ["null"] ++ acc, stack, context, comb__line, comb__offset + 4)
+  end
+
+  defp comp_exp__34(rest, acc, stack, context, line, offset) do
+    comp_exp__33(rest, acc, stack, context, line, offset)
+  end
+
+  defp comp_exp__35(rest, acc, [_, previous_acc | stack], context, line, offset) do
+    comp_exp__18(rest, acc ++ previous_acc, stack, context, line, offset)
+  end
+
+  defp comp_exp__36(_, _, [{rest, context, line, offset} | _] = stack, _, _, _) do
+    comp_exp__34(rest, [], stack, context, line, offset)
+  end
+
+  defp comp_exp__37(<<"true", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    comp_exp__38(rest, ["true"] ++ acc, stack, context, comb__line, comb__offset + 4)
+  end
+
+  defp comp_exp__37(rest, acc, stack, context, line, offset) do
+    comp_exp__36(rest, acc, stack, context, line, offset)
+  end
+
+  defp comp_exp__38(rest, acc, [_, previous_acc | stack], context, line, offset) do
+    comp_exp__18(rest, acc ++ previous_acc, stack, context, line, offset)
+  end
+
+  defp comp_exp__39(_, _, [{rest, context, line, offset} | _] = stack, _, _, _) do
+    comp_exp__37(rest, [], stack, context, line, offset)
+  end
+
+  defp comp_exp__40(<<"false", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    comp_exp__41(rest, ["false"] ++ acc, stack, context, comb__line, comb__offset + 5)
+  end
+
+  defp comp_exp__40(rest, acc, stack, context, line, offset) do
+    comp_exp__39(rest, acc, stack, context, line, offset)
+  end
+
+  defp comp_exp__41(rest, acc, [_, previous_acc | stack], context, line, offset) do
+    comp_exp__18(rest, acc ++ previous_acc, stack, context, line, offset)
+  end
+
+  defp comp_exp__18(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    comp_exp__42(
+      rest,
+      Enum.map(user_acc, fn var -> List.wrap(var) end) ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp comp_exp__42(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    comp_exp__43(
+      rest,
+      [Enum.concat(:lists.reverse(user_acc))] ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp comp_exp__43(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    comp_exp__44(
+      rest,
+      Enum.map(user_acc, fn var -> ExScim.Parser.Filter.to_comp_ast(var) end) ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp comp_exp__44(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+
+  defp logical_op__0(rest, acc, stack, context, line, offset) do
+    logical_op__1(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp logical_op__1(rest, acc, stack, context, line, offset) do
+    logical_op__2(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp logical_op__2(<<x0, rest::binary>>, acc, stack, context, comb__line, comb__offset)
+       when x0 === 32 or x0 === 9 or x0 === 10 or x0 === 13 do
+    logical_op__4(
+      rest,
+      acc,
+      stack,
+      context,
+      (
+        line = comb__line
+
+        case x0 do
+          10 -> {elem(line, 0) + 1, comb__offset + 1}
+          _ -> line
+        end
+      ),
+      comb__offset + 1
+    )
+  end
+
+  defp logical_op__2(rest, acc, stack, context, line, offset) do
+    logical_op__3(rest, acc, stack, context, line, offset)
+  end
+
+  defp logical_op__4(rest, acc, stack, context, line, offset) do
+    logical_op__2(rest, acc, stack, context, line, offset)
+  end
+
+  defp logical_op__3(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+    logical_op__5(rest, [] ++ acc, stack, context, line, offset)
+  end
+
+  defp logical_op__5(<<"and", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    logical_op__6(rest, ["and"] ++ acc, stack, context, comb__line, comb__offset + 3)
+  end
+
+  defp logical_op__5(<<"And", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    logical_op__6(rest, ["And"] ++ acc, stack, context, comb__line, comb__offset + 3)
+  end
+
+  defp logical_op__5(<<"aNd", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    logical_op__6(rest, ["aNd"] ++ acc, stack, context, comb__line, comb__offset + 3)
+  end
+
+  defp logical_op__5(<<"anD", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    logical_op__6(rest, ["anD"] ++ acc, stack, context, comb__line, comb__offset + 3)
+  end
+
+  defp logical_op__5(<<"ANd", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    logical_op__6(rest, ["ANd"] ++ acc, stack, context, comb__line, comb__offset + 3)
+  end
+
+  defp logical_op__5(<<"aND", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    logical_op__6(rest, ["aND"] ++ acc, stack, context, comb__line, comb__offset + 3)
+  end
+
+  defp logical_op__5(<<"AnD", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    logical_op__6(rest, ["AnD"] ++ acc, stack, context, comb__line, comb__offset + 3)
+  end
+
+  defp logical_op__5(<<"AND", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    logical_op__6(rest, ["AND"] ++ acc, stack, context, comb__line, comb__offset + 3)
+  end
+
+  defp logical_op__5(<<"or", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    logical_op__6(rest, ["or"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp logical_op__5(<<"Or", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    logical_op__6(rest, ["Or"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp logical_op__5(<<"oR", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    logical_op__6(rest, ["oR"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp logical_op__5(<<"OR", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    logical_op__6(rest, ["OR"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp logical_op__5(rest, _acc, _stack, context, line, offset) do
+    {:error,
+     "expected string \"and\" or string \"And\" or string \"aNd\" or string \"anD\" or string \"ANd\" or string \"aND\" or string \"AnD\" or string \"AND\" or string \"or\" or string \"Or\" or string \"oR\" or string \"OR\"",
+     rest, context, line, offset}
+  end
+
+  defp logical_op__6(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    logical_op__7(
+      rest,
+      Enum.map(user_acc, fn var -> ExScim.Parser.Filter.to_op(var) end) ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp logical_op__7(rest, acc, stack, context, line, offset) do
+    logical_op__8(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp logical_op__8(<<x0, rest::binary>>, acc, stack, context, comb__line, comb__offset)
+       when x0 === 32 or x0 === 9 or x0 === 10 or x0 === 13 do
+    logical_op__10(
+      rest,
+      acc,
+      stack,
+      context,
+      (
+        line = comb__line
+
+        case x0 do
+          10 -> {elem(line, 0) + 1, comb__offset + 1}
+          _ -> line
+        end
+      ),
+      comb__offset + 1
+    )
+  end
+
+  defp logical_op__8(rest, acc, stack, context, line, offset) do
+    logical_op__9(rest, acc, stack, context, line, offset)
+  end
+
+  defp logical_op__10(rest, acc, stack, context, line, offset) do
+    logical_op__8(rest, acc, stack, context, line, offset)
+  end
+
+  defp logical_op__9(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+    logical_op__11(rest, [] ++ acc, stack, context, line, offset)
+  end
+
+  defp logical_op__11(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+
+  defp attr_exp__0(rest, acc, stack, context, line, offset) do
+    case attr_path__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        attr_exp__1(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        error
+    end
+  end
+
+  defp attr_exp__1(rest, acc, stack, context, line, offset) do
+    attr_exp__5(rest, [], [{rest, context, line, offset}, acc | stack], context, line, offset)
+  end
+
+  defp attr_exp__3(rest, acc, [_, previous_acc | stack], context, line, offset) do
+    attr_exp__2(rest, acc ++ previous_acc, stack, context, line, offset)
+  end
+
+  defp attr_exp__4(_, _, [{rest, context, line, offset} | _] = stack, _, _, _) do
+    attr_exp__3(rest, [], stack, context, line, offset)
+  end
+
+  defp attr_exp__5(<<"[", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    attr_exp__6(rest, [] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp attr_exp__5(rest, acc, stack, context, line, offset) do
+    attr_exp__4(rest, acc, stack, context, line, offset)
+  end
+
+  defp attr_exp__6(rest, acc, stack, context, line, offset) do
+    case val_filter__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        attr_exp__7(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        attr_exp__4(rest, acc, stack, context, line, offset)
+    end
+  end
+
+  defp attr_exp__7(<<"]", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    attr_exp__8(rest, [] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp attr_exp__7(rest, acc, stack, context, line, offset) do
+    attr_exp__4(rest, acc, stack, context, line, offset)
+  end
+
+  defp attr_exp__8(rest, acc, [_, previous_acc | stack], context, line, offset) do
+    attr_exp__2(rest, acc ++ previous_acc, stack, context, line, offset)
+  end
+
+  defp attr_exp__2(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+
+  defp filtered_attr_expr__0(rest, acc, stack, context, line, offset) do
+    filtered_attr_expr__1(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp filtered_attr_expr__1(rest, acc, stack, context, line, offset) do
+    case attr_path__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        filtered_attr_expr__2(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        error
+    end
+  end
+
+  defp filtered_attr_expr__2(<<"[", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    filtered_attr_expr__3(rest, [] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp filtered_attr_expr__2(rest, _acc, _stack, context, line, offset) do
+    {:error, "expected string \"[\"", rest, context, line, offset}
+  end
+
+  defp filtered_attr_expr__3(rest, acc, stack, context, line, offset) do
+    case val_filter__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        filtered_attr_expr__4(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        error
+    end
+  end
+
+  defp filtered_attr_expr__4(<<"]", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    filtered_attr_expr__5(rest, [] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp filtered_attr_expr__4(rest, _acc, _stack, context, line, offset) do
+    {:error, "expected string \"]\"", rest, context, line, offset}
+  end
+
+  defp filtered_attr_expr__5(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    filtered_attr_expr__6(
+      rest,
+      [ExScim.Parser.Filter.to_attribute_filter_ast(:lists.reverse(user_acc))] ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp filtered_attr_expr__6(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+
+  defp attr_path__0(rest, acc, stack, context, line, offset) do
+    attr_path__1(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp attr_path__1(rest, acc, stack, context, line, offset) do
+    case attr_name__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        attr_path__2(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        error
+    end
+  end
+
+  defp attr_path__2(rest, acc, stack, context, line, offset) do
+    attr_path__4(rest, [], [{rest, acc, context, line, offset} | stack], context, line, offset)
+  end
+
+  defp attr_path__4(<<".", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    attr_path__5(rest, [] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp attr_path__4(rest, acc, stack, context, line, offset) do
+    attr_path__3(rest, acc, stack, context, line, offset)
+  end
+
+  defp attr_path__5(rest, acc, stack, context, line, offset) do
+    case attr_name__0(rest, acc, [], context, line, offset) do
+      {:ok, acc, rest, context, line, offset} ->
+        attr_path__6(rest, acc, stack, context, line, offset)
+
+      {:error, _, _, _, _, _} = error ->
+        attr_path__3(rest, acc, stack, context, line, offset)
+    end
+  end
+
+  defp attr_path__3(_, _, [{rest, acc, context, line, offset} | stack], _, _, _) do
+    attr_path__7(rest, acc, stack, context, line, offset)
+  end
+
+  defp attr_path__6(
+         inner_rest,
+         inner_acc,
+         [{rest, acc, context, line, offset} | stack],
+         inner_context,
+         inner_line,
+         inner_offset
+       ) do
+    _ = {rest, acc, context, line, offset}
+
+    attr_path__4(
+      inner_rest,
+      [],
+      [{inner_rest, inner_acc ++ acc, inner_context, inner_line, inner_offset} | stack],
+      inner_context,
+      inner_line,
+      inner_offset
+    )
+  end
+
+  defp attr_path__7(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    attr_path__8(
+      rest,
+      [ExScim.Parser.Filter.join_path(:lists.reverse(user_acc))] ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp attr_path__8(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+
+  defp attr_name__0(rest, acc, stack, context, line, offset) do
+    attr_name__1(rest, [], [acc | stack], context, line, offset)
+  end
+
+  defp attr_name__1(<<x0, rest::binary>>, acc, stack, context, comb__line, comb__offset)
+       when (x0 >= 97 and x0 <= 122) or (x0 >= 65 and x0 <= 90) or (x0 >= 48 and x0 <= 57) or
+              x0 === 95 or
+              x0 === 45 or x0 === 58 or x0 === 47 do
+    attr_name__2(rest, [<<x0::integer>>] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp attr_name__1(rest, _acc, _stack, context, line, offset) do
+    {:error,
+     "expected ASCII character in the range \"a\" to \"z\" or in the range \"A\" to \"Z\" or in the range \"0\" to \"9\" or equal to \"_\" or equal to \"-\" or equal to \":\" or equal to \"/\"",
+     rest, context, line, offset}
+  end
+
+  defp attr_name__2(<<x0, rest::binary>>, acc, stack, context, comb__line, comb__offset)
+       when (x0 >= 97 and x0 <= 122) or (x0 >= 65 and x0 <= 90) or (x0 >= 48 and x0 <= 57) or
+              x0 === 95 or
+              x0 === 45 or x0 === 58 or x0 === 47 do
+    attr_name__4(rest, [x0] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp attr_name__2(rest, acc, stack, context, line, offset) do
+    attr_name__3(rest, acc, stack, context, line, offset)
+  end
+
+  defp attr_name__4(rest, acc, stack, context, line, offset) do
+    attr_name__2(rest, acc, stack, context, line, offset)
+  end
+
+  defp attr_name__3(rest, user_acc, [acc | stack], context, line, offset) do
+    _ = user_acc
+
+    attr_name__5(
+      rest,
+      [List.to_string(:lists.reverse(user_acc))] ++ acc,
+      stack,
+      context,
+      line,
+      offset
+    )
+  end
+
+  defp attr_name__5(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+
+  defp attr_char__0(<<x0, rest::binary>>, acc, stack, context, comb__line, comb__offset)
+       when (x0 >= 97 and x0 <= 122) or (x0 >= 65 and x0 <= 90) or (x0 >= 48 and x0 <= 57) or
+              x0 === 95 or
+              x0 === 45 or x0 === 58 or x0 === 47 do
+    attr_char__1(rest, [x0] ++ acc, stack, context, comb__line, comb__offset + 1)
+  end
+
+  defp attr_char__0(rest, _acc, _stack, context, line, offset) do
+    {:error,
+     "expected ASCII character in the range \"a\" to \"z\" or in the range \"A\" to \"Z\" or in the range \"0\" to \"9\" or equal to \"_\" or equal to \"-\" or equal to \":\" or equal to \"/\"",
+     rest, context, line, offset}
+  end
+
+  defp attr_char__1(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+
+  defp compare_op__0(<<"eq", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["eq"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"ne", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["ne"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"co", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["co"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"sw", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["sw"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"ew", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["ew"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"gt", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["gt"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"lt", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["lt"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"ge", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["ge"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"le", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["le"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"Eq", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["Eq"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"Ne", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["Ne"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"Co", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["Co"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"Sw", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["Sw"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"Ew", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["Ew"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"Gt", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["Gt"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"Lt", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["Lt"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"Ge", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["Ge"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"Le", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["Le"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"eQ", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["eQ"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"nE", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["nE"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"cO", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["cO"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"sW", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["sW"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"eW", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["eW"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"gT", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["gT"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"lT", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["lT"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"gE", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["gE"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"lE", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["lE"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"EQ", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["EQ"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"NE", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["NE"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"CO", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["CO"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"SW", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["SW"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"EW", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["EW"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"GT", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["GT"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"LT", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["LT"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"GE", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["GE"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(<<"LE", rest::binary>>, acc, stack, context, comb__line, comb__offset) do
+    compare_op__1(rest, ["LE"] ++ acc, stack, context, comb__line, comb__offset + 2)
+  end
+
+  defp compare_op__0(rest, _acc, _stack, context, line, offset) do
+    {:error,
+     "expected string \"eq\" or string \"ne\" or string \"co\" or string \"sw\" or string \"ew\" or string \"gt\" or string \"lt\" or string \"ge\" or string \"le\" or string \"Eq\" or string \"Ne\" or string \"Co\" or string \"Sw\" or string \"Ew\" or string \"Gt\" or string \"Lt\" or string \"Ge\" or string \"Le\" or string \"eQ\" or string \"nE\" or string \"cO\" or string \"sW\" or string \"eW\" or string \"gT\" or string \"lT\" or string \"gE\" or string \"lE\" or string \"EQ\" or string \"NE\" or string \"CO\" or string \"SW\" or string \"EW\" or string \"GT\" or string \"LT\" or string \"GE\" or string \"LE\"",
+     rest, context, line, offset}
+  end
+
+  defp compare_op__1(rest, acc, _stack, context, line, offset) do
+    {:ok, acc, rest, context, line, offset}
+  end
+end
