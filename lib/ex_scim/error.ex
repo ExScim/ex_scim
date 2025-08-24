@@ -36,20 +36,29 @@ defmodule ExScim.Error do
   @typedoc """
   Standard SCIM error response structure.
   """
+  # TODO: Update or replace the type spec to contain the field names.
+  # "schemas"
+  # "status"
+  # "scimType"
+  # "detail"
+  # "errors"
   @type error_response :: %{
-          required(:schemas) => [String.t()],
-          required(:status) => String.t(),
-          required(:scimType) => String.t(),
-          required(:detail) => String.t(),
-          optional(:errors) => [validation_error()]
+          required(String.t()) => [String.t()],
+          required(String.t()) => String.t(),
+          required(String.t()) => String.t(),
+          optional(String.t()) => String.t(),
+          optional(String.t()) => [validation_error()]
         }
 
   @typedoc """
   Individual validation error for multi-error responses.
   """
+  # TODO: Update or replace the type spec to contain the field names.
+  # "path"
+  # "message"
   @type validation_error :: %{
-          required(:path) => String.t(),
-          required(:message) => String.t()
+          required(String.t()) => String.t(),
+          required(String.t()) => String.t()
         }
 
   @doc """
@@ -118,8 +127,18 @@ defmodule ExScim.Error do
       "schemas" => [@scim_error_schema],
       "status" => "400",
       "scimType" => "invalidValue",
-      "errors" => errors
+      "errors" => errors |> convert_validation_errors_to_scim()
     }
+  end
+
+  defp convert_validation_errors_to_scim(errors) when is_list(errors) do
+    errors
+    |> Enum.map(fn
+      {field, message} -> %{"path" => to_string(field), "message" => to_string(message)}
+      %{"path" => _, "message" => _} = error -> error
+      message when is_binary(message) -> %{"path" => "unknown", "message" => message}
+      error -> %{"path" => "unknown", "message" => inspect(error)}
+    end)
   end
 
   @doc """
