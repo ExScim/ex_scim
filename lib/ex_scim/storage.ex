@@ -1,8 +1,35 @@
 defmodule ExScim.Storage do
+  @moduledoc """
+  Storage interface for SCIM resources using configurable adapters.
+  
+  This module provides a unified interface for storing and retrieving Users and Groups.
+  The actual storage implementation is configurable via the `:storage_strategy` config.
+  
+  ## Configuration
+  
+      config :ex_scim, storage_strategy: MyApp.CustomStorage
+  
+  ## Examples
+  
+      iex> ExScim.Storage.adapter()
+      ExScim.Storage.EtsStorage
+  """
+  
   @behaviour ExScim.Storage.Adapter
 
   @default_storage_adapter ExScim.Storage.EtsStorage
 
+  @doc """
+  Retrieves a user by ID.
+  
+  ## Examples
+  
+      iex> ExScim.Storage.get_user("123")
+      {:ok, %{"id" => "123", "userName" => "john"}}
+      
+      iex> ExScim.Storage.get_user("nonexistent")
+      {:error, :not_found}
+  """
   @impl true
   def get_user(user_id) do
     adapter().get_user(user_id)
@@ -23,6 +50,16 @@ defmodule ExScim.Storage do
     adapter().list_users(filter_ast, sort_opts, pagination_opts)
   end
 
+  @doc """
+  Creates a new user with the provided data.
+  
+  ## Examples
+  
+      iex> user_data = %{"userName" => "john", "displayName" => "John Doe"}
+      iex> {:ok, _user} = ExScim.Storage.create_user(user_data)
+      iex> true
+      true
+  """
   @impl true
   def create_user(user_data) do
     adapter().create_user(user_data)
@@ -84,6 +121,14 @@ defmodule ExScim.Storage do
     adapter().group_exists?(group_id)
   end
 
+  @doc """
+  Returns the configured storage adapter module.
+  
+  ## Examples
+  
+      iex> ExScim.Storage.adapter()
+      ExScim.Storage.EtsStorage
+  """
   def adapter do
     Application.get_env(:ex_scim, :storage_strategy, @default_storage_adapter)
   end
