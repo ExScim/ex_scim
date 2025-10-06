@@ -1,0 +1,57 @@
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+name: ExScim CI
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'ex_scim/**'
+      - '.github/workflows/ex_scim.yml'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'ex_scim/**'
+      - '.github/workflows/ex_scim.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test ex_scim
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+    
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.18.2'
+          otp-version: '27.0'
+    
+      - name: Restore dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ex_scim/deps
+            ex_scim/_build
+          key: ${{ runner.os }}-mix-ex_scim-${{ hashFiles('ex_scim/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-ex_scim-
+    
+      - name: Install dependencies
+        working-directory: ex_scim
+        run: mix deps.get
+    
+      - name: Compile project
+        working-directory: ex_scim
+        run: MIX_ENV=test mix compile --warnings-as-errors
+    
+      - name: Run tests
+        working-directory: ex_scim
+        run: mix test
