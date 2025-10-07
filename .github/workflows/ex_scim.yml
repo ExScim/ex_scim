@@ -38,20 +38,17 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ex_scim/deps
-            ex_scim/_build
-          key: ${{ runner.os }}-mix-ex_scim-${{ hashFiles('ex_scim/mix.lock') }}
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ hashFiles('mix.lock') }}
           restore-keys: |
-            ${{ runner.os }}-mix-ex_scim-
-    
+            ${{ runner.os }}-mix-
+
       - name: Install dependencies
-        working-directory: ex_scim
         run: mix deps.get
-    
+
       - name: Compile project
-        working-directory: ex_scim
         run: MIX_ENV=test mix compile --warnings-as-errors
-    
+
       - name: Run tests
-        working-directory: ex_scim
         run: mix test
