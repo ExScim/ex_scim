@@ -1,6 +1,6 @@
 # ExScim
 
-[![ExScim Project](https://github.com/wheredoipressnow/ex_scim/actions/workflows/multi-project-elixir.yml/badge.svg)](https://github.com/wheredoipressnow/ex_scim/actions/workflows/multi-project-elixir.yml)
+[![ExScim CI](https://github.com/ExScim/ex_scim/actions/workflows/ex_scim.yml/badge.svg)](https://github.com/ExScim/ex_scim/actions/workflows/ex_scim.yml)
 
 SCIM 2.0 implementation in Elixir.  
 Based on the official specifications:  
