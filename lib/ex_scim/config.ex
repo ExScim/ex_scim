@@ -1,9 +1,6 @@
 defmodule ExScim.Config do
   @moduledoc """
-  Centralized configuration utilities for the ExScim library.
-
-  This module provides a unified interface for accessing ExScim configuration
-  values with consistent defaults and proper environment variable support.
+  Centralized configuration management for ExScim.
   """
 
   @doc """
