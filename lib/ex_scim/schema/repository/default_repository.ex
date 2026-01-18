@@ -3,7 +3,7 @@ defmodule ExScim.Schema.Repository.DefaultRepository do
 
   @behaviour ExScim.Schema.Repository.Adapter
 
-  @base_url "http://host.docker.internal:4000"
+  import ExScim.Config
 
   @user_schema %{
     "schemas" => ["urn:ietf:params:scim:schemas:core:2.0:Schema"],
@@ -416,7 +416,7 @@ defmodule ExScim.Schema.Repository.DefaultRepository do
     ],
     "meta" => %{
       "resourceType" => "Schema",
-      "location" => "#{@base_url}/scim/v2/Schemas/urn:ietf:params:scim:schemas:core:2.0:User"
+      "location" => "#{base_url()}/scim/v2/Schemas/urn:ietf:params:scim:schemas:core:2.0:User"
     }
   }
 
@@ -520,7 +520,7 @@ defmodule ExScim.Schema.Repository.DefaultRepository do
     "meta" => %{
       "resourceType" => "Schema",
       "location" =>
-        "#{@base_url}/scim/v2/Schemas/urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+        "#{base_url()}/scim/v2/Schemas/urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
     }
   }
 
@@ -591,7 +591,7 @@ defmodule ExScim.Schema.Repository.DefaultRepository do
     ],
     "meta" => %{
       "resourceType" => "Schema",
-      "location" => "#{@base_url}/scim/v2/Schemas/urn:ietf:params:scim:schemas:core:2.0:Group"
+      "location" => "#{base_url()}/scim/v2/Schemas/urn:ietf:params:scim:schemas:core:2.0:Group"
     }
   }
 
