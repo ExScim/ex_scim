@@ -71,6 +71,11 @@ defmodule ExScim.Storage do
   end
 
   @impl true
+  def replace_user(user_id, user_data) do
+    adapter().replace_user(user_id, user_data)
+  end
+
+  @impl true
   def delete_user(user_id) do
     adapter().delete_user(user_id)
   end
@@ -109,6 +114,11 @@ defmodule ExScim.Storage do
   @impl true
   def update_group(group_id, group_data) do
     adapter().update_group(group_id, group_data)
+  end
+
+  @impl true
+  def replace_group(group_id, group_data) do
+    adapter().replace_group(group_id, group_data)
   end
 
   @impl true
