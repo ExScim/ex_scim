@@ -258,7 +258,7 @@ defmodule ExScim.Operations.Bulk do
 
     case resource_type do
       :users ->
-        case Users.update_user_from_scim(resource_id, operation.data) do
+        case Users.replace_user_from_scim(resource_id, operation.data) do
           {:ok, user} ->
             %{
               "method" => operation.method,
@@ -287,7 +287,7 @@ defmodule ExScim.Operations.Bulk do
         end
 
       :groups ->
-        case Groups.update_group_from_scim(resource_id, operation.data) do
+        case Groups.replace_group_from_scim(resource_id, operation.data) do
           {:ok, group} ->
             %{
               "method" => operation.method,

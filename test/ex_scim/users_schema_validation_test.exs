@@ -115,7 +115,7 @@ defmodule ExScim.UsersSchemaValidationTest do
     end
   end
 
-  describe "update_user_from_scim/2 with schema validation" do
+  describe "replace_user_from_scim/2 with schema validation" do
     test "validates schema before updating" do
       scim_data = %{
         "schemas" => ["urn:ietf:params:scim:schemas:core:2.0:User"],

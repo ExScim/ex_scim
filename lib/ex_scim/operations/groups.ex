@@ -52,13 +52,13 @@ defmodule ExScim.Operations.Groups do
     end
   end
 
-  def update_group_from_scim(group_id, scim_data) do
+  def replace_group_from_scim(group_id, scim_data) do
     with {:ok, _existing_group} <- Storage.get_group(group_id),
          {:ok, schema_validated_data} <- Validator.validate_scim_schema(scim_data),
          group_struct <- Mapper.from_scim(schema_validated_data),
          group_with_id <- Resource.set_id(group_struct, group_id),
          group_with_meta <- Metadata.update_metadata(group_with_id, "Group"),
-         {:ok, stored_group} <- Storage.update_group(group_id, group_with_meta) do
+         {:ok, stored_group} <- Storage.replace_group(group_id, group_with_meta) do
       {:ok, Mapper.to_scim(stored_group)}
     end
   end

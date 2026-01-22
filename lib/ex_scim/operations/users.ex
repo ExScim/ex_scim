@@ -52,13 +52,13 @@ defmodule ExScim.Operations.Users do
     end
   end
 
-  def update_user_from_scim(user_id, scim_data) do
+  def replace_user_from_scim(user_id, scim_data) do
     with {:ok, _existing_user} <- Storage.get_user(user_id),
          {:ok, schema_validated_data} <- Validator.validate_scim_schema(scim_data),
          user_struct <- Mapper.from_scim(schema_validated_data),
          user_with_id <- Resource.set_id(user_struct, user_id),
          user_with_meta <- Metadata.update_metadata(user_with_id, "User"),
-         {:ok, stored_user} <- Storage.update_user(user_id, user_with_meta) do
+         {:ok, stored_user} <- Storage.replace_user(user_id, user_with_meta) do
       {:ok, Mapper.to_scim(stored_user)}
     end
   end

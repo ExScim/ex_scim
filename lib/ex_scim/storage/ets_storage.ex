@@ -52,6 +52,10 @@ defmodule ExScim.Storage.EtsStorage do
     GenServer.call(__MODULE__, {:update_user, user_id, user_data})
   end
 
+  def replace_user(user_id, user_data) do
+    GenServer.call(__MODULE__, {:replace_user, user_id, user_data})
+  end
+
   def delete_user(user_id) do
     GenServer.call(__MODULE__, {:delete_user, user_id})
   end
@@ -99,6 +103,10 @@ defmodule ExScim.Storage.EtsStorage do
 
   def update_group(group_id, group_data) do
     GenServer.call(__MODULE__, {:update_group, group_id, group_data})
+  end
+
+  def replace_group(group_id, group_data) do
+    GenServer.call(__MODULE__, {:replace_group, group_id, group_data})
   end
 
   def delete_group(group_id) do
@@ -155,6 +163,42 @@ defmodule ExScim.Storage.EtsStorage do
   end
 
   def handle_call({:update_user, user_id, user_data}, _from, state) do
+    case get_user(user_id) do
+      {:error, :not_found} ->
+        {:reply, {:error, :not_found}, state}
+
+      {:ok, existing_user} ->
+        new_username = user_data["userName"]
+        new_external_id = user_data["externalId"]
+        old_username = existing_user["userName"]
+        old_external_id = existing_user["externalId"]
+
+        with :ok <-
+               validate_update_constraints(
+                 user_id,
+                 new_username,
+                 new_external_id,
+                 old_username,
+                 old_external_id
+               ),
+             updated_user_data <- Map.put(user_data, "id", user_id),
+             :ok <-
+               update_indexes(
+                 user_id,
+                 new_username,
+                 new_external_id,
+                 old_username,
+                 old_external_id
+               ),
+             true <- :ets.insert(@table_name, {user_id, updated_user_data}) do
+          {:reply, {:ok, updated_user_data}, state}
+        else
+          {:error, reason} -> {:reply, {:error, reason}, state}
+        end
+    end
+  end
+
+  def handle_call({:replace_user, user_id, user_data}, _from, state) do
     case get_user(user_id) do
       {:error, :not_found} ->
         {:reply, {:error, :not_found}, state}
@@ -247,6 +291,42 @@ defmodule ExScim.Storage.EtsStorage do
   end
 
   def handle_call({:update_group, group_id, group_data}, _from, state) do
+    case get_group(group_id) do
+      {:error, :not_found} ->
+        {:reply, {:error, :not_found}, state}
+
+      {:ok, existing_group} ->
+        new_display_name = group_data["displayName"]
+        new_external_id = group_data["externalId"]
+        old_display_name = existing_group["displayName"]
+        old_external_id = existing_group["externalId"]
+
+        with :ok <-
+               validate_group_update_constraints(
+                 group_id,
+                 new_display_name,
+                 new_external_id,
+                 old_display_name,
+                 old_external_id
+               ),
+             updated_group_data <- Map.put(group_data, "id", group_id),
+             :ok <-
+               update_group_indexes(
+                 group_id,
+                 new_display_name,
+                 new_external_id,
+                 old_display_name,
+                 old_external_id
+               ),
+             true <- :ets.insert(@groups_table_name, {group_id, updated_group_data}) do
+          {:reply, {:ok, updated_group_data}, state}
+        else
+          {:error, reason} -> {:reply, {:error, reason}, state}
+        end
+    end
+  end
+
+  def handle_call({:replace_group, group_id, group_data}, _from, state) do
     case get_group(group_id) do
       {:error, :not_found} ->
         {:reply, {:error, :not_found}, state}

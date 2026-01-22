@@ -16,6 +16,7 @@ defmodule ExScim.Storage.Adapter do
 
   @callback create_user(domain_user()) :: {:ok, domain_user()} | {:error, term()}
   @callback update_user(user_id(), domain_user()) :: {:ok, domain_user()} | {:error, term()}
+  @callback replace_user(user_id(), domain_user()) :: {:ok, domain_user()} | {:error, term()}
   @callback delete_user(user_id()) :: :ok | {:error, term()}
 
   @callback user_exists?(user_id()) :: boolean()
@@ -28,6 +29,7 @@ defmodule ExScim.Storage.Adapter do
 
   @callback create_group(domain_group()) :: {:ok, domain_group()} | {:error, term()}
   @callback update_group(group_id(), domain_group()) :: {:ok, domain_group()} | {:error, term()}
+  @callback replace_group(group_id(), domain_group()) :: {:ok, domain_group()} | {:error, term()}
   @callback delete_group(group_id()) :: :ok | {:error, term()}
 
   @callback group_exists?(group_id()) :: boolean()
