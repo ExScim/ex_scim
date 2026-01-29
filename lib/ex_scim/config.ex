@@ -75,4 +75,95 @@ defmodule ExScim.Config do
   def collection_url(resource_type) when is_binary(resource_type) do
     "#{scim_base_url()}/#{resource_type}"
   end
+
+  @doc """
+  Returns whether SCIM PATCH operations are supported.
+  """
+  @spec patch_supported() :: boolean()
+  def patch_supported do
+    Application.get_env(:ex_scim, :patch_supported, false)
+  end
+
+  @doc """
+  Returns whether SCIM bulk operations are supported.
+  """
+  @spec bulk_supported() :: boolean()
+  def bulk_supported do
+    Application.get_env(:ex_scim, :bulk_supported, true)
+  end
+
+  @doc """
+  Returns the maximum number of operations per bulk request.
+  """
+  @spec bulk_max_operations() :: integer()
+  def bulk_max_operations do
+    Application.get_env(:ex_scim, :bulk_max_operations, 1000)
+  end
+
+  @doc """
+  Returns the maximum payload size in bytes for bulk operations.
+  """
+  @spec bulk_max_payload_size() :: integer()
+  def bulk_max_payload_size do
+    Application.get_env(:ex_scim, :bulk_max_payload_size, 1_048_576)
+  end
+
+  @doc """
+  Returns whether SCIM filter operations are supported.
+  """
+  @spec filter_supported() :: boolean()
+  def filter_supported do
+    Application.get_env(:ex_scim, :filter_supported, false)
+  end
+
+  @doc """
+  Returns the maximum number of results for filter queries.
+  """
+  @spec filter_max_results() :: integer()
+  def filter_max_results do
+    Application.get_env(:ex_scim, :filter_max_results, 200)
+  end
+
+  @doc """
+  Returns whether SCIM change password operations are supported.
+  """
+  @spec change_password_supported() :: boolean()
+  def change_password_supported do
+    Application.get_env(:ex_scim, :change_password_supported, false)
+  end
+
+  @doc """
+  Returns whether SCIM sort operations are supported.
+  """
+  @spec sort_supported() :: boolean()
+  def sort_supported do
+    Application.get_env(:ex_scim, :sort_supported, false)
+  end
+
+  @doc """
+  Returns whether SCIM ETag support is enabled.
+  """
+  @spec etag_supported() :: boolean()
+  def etag_supported do
+    Application.get_env(:ex_scim, :etag_supported, false)
+  end
+
+  @doc """
+  Returns the documentation URI for the SCIM service provider, or nil if not configured.
+  """
+  @spec documentation_uri() :: String.t() | nil
+  def documentation_uri do
+    Application.get_env(:ex_scim, :documentation_uri, nil)
+  end
+
+  @doc """
+  Returns the list of authentication schemes supported by the SCIM service provider.
+
+  Each scheme is a map with string keys matching RFC 7643 (`type`, `name`, `description`,
+  and optionally `specUri`, `documentationUri`, `primary`).
+  """
+  @spec authentication_schemes() :: [map()]
+  def authentication_schemes do
+    Application.get_env(:ex_scim, :authentication_schemes, [])
+  end
 end
