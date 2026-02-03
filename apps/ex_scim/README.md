@@ -1,7 +1,5 @@
 # ExScim
 
-[![ExScim CI](https://github.com/ExScim/ex_scim/actions/workflows/ex_scim.yml/badge.svg)](https://github.com/ExScim/ex_scim/actions/workflows/ex_scim.yml)
-
 SCIM 2.0 implementation in Elixir.  
 Based on the official specifications:  
 - [RFC 7643: SCIM Core Schema](https://www.rfc-editor.org/rfc/rfc7643)  

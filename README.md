@@ -1,5 +1,7 @@
 # ExScim
 
+[![CI](https://github.com/ExScim/ex_scim_umbrella/actions/workflows/ci.yml/badge.svg)](https://github.com/ExScim/ex_scim_umbrella/actions/workflows/ci.yml)
+
 SCIM 2.0 (RFC 7643/7644) implementation for Elixir.
 
 ## Packages
