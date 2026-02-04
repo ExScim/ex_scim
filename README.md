@@ -16,10 +16,10 @@ The system is modular and adapter-based, so storage, mapping, authentication, an
 Add the dependencies you need to `mix.exs`. You can reference specific apps from the umbrella using a git dependency with the :sparse option:
 
 ```elixir
-{:ex_scim, git: "https://github.com/ExScim/ex_scim.git", sparse: "apps/ex_scim"},
-{:ex_scim_ecto, git: "https://github.com/ExScim/ex_scim.git", sparse: "apps/ex_scim_ecto"}        # optional: Ecto storage
-{:ex_scim_phoenix, git: "https://github.com/ExScim/ex_scim.git", sparse: "apps/ex_scim_phoenix"}  # optional: Phoenix endpoints
-{:ex_scim_client, git: "https://github.com/ExScim/ex_scim.git", sparse: "apps/ex_scim_client"}    # optional: HTTP client
+{:ex_scim, git: "https://github.com/ExScim/ex_scim.git", sparse: "apps/ex_scim", branch: "main", override: true},
+{:ex_scim_ecto, git: "https://github.com/ExScim/ex_scim.git", sparse: "apps/ex_scim_ecto", branch: "main", override: true},        # optional: Ecto storage
+{:ex_scim_phoenix, git: "https://github.com/ExScim/ex_scim.git", sparse: "apps/ex_scim_phoenix", branch: "main", override: true},  # optional: Phoenix endpoints
+{:ex_scim_client, git: "https://github.com/ExScim/ex_scim.git", sparse: "apps/ex_scim_client", branch: "main", override: true}     # optional: HTTP client
 ````
 
 Run the example provider app to see a working SCIM setup:
