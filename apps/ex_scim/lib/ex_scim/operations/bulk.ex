@@ -34,6 +34,7 @@ defmodule ExScim.Operations.Bulk do
   ## Parameters
 
     * `bulk_request` - Map containing SCIM bulk request
+    * `caller` - The authenticated principal making the request
     * `opts` - Options including:
       * `:fail_on_errors` - Number of errors before stopping (default: 0 = continue)
       * `:max_operations` - Maximum operations allowed (default: 1000)
@@ -45,10 +46,10 @@ defmodule ExScim.Operations.Bulk do
     * `{:ok, bulk_response}` - Bulk response with operation results
     * `{:error, reason}` - Error if bulk request is invalid
   """
-  def process_bulk_request(bulk_request, opts \\ []) do
+  def process_bulk_request(bulk_request, caller, opts \\ []) do
     with {:ok, validated_request} <- validate_bulk_request(bulk_request, opts),
          {:ok, operations} <- parse_operations(validated_request["Operations"]),
-         {:ok, response_operations} <- execute_operations(operations, opts) do
+         {:ok, response_operations} <- execute_operations(operations, caller, opts) do
       response = %{
         "schemas" => [@bulk_response_schema],
         "Operations" => response_operations
@@ -152,7 +153,7 @@ defmodule ExScim.Operations.Bulk do
     end
   end
 
-  defp execute_operations(operations, opts) do
+  defp execute_operations(operations, caller, opts) do
     fail_on_errors = Keyword.get(opts, :fail_on_errors, 0)
     base_url = Keyword.get(opts, :base_url, Config.base_url())
 
@@ -162,7 +163,7 @@ defmodule ExScim.Operations.Bulk do
           # Stop processing if we've hit the error limit
           {acc, error_count}
         else
-          result = execute_single_operation(operation, base_url)
+          result = execute_single_operation(operation, caller, base_url)
 
           new_error_count =
             if result["status"] != "200" and result["status"] != "201",
@@ -176,11 +177,11 @@ defmodule ExScim.Operations.Bulk do
     {:ok, Enum.reverse(response_operations)}
   end
 
-  defp execute_single_operation(operation, base_url) do
+  defp execute_single_operation(operation, caller, base_url) do
     case operation.method do
-      "POST" -> handle_post_operation(operation, base_url)
-      "PUT" -> handle_put_operation(operation, base_url)
-      "PATCH" -> handle_patch_operation(operation, base_url)
+      "POST" -> handle_post_operation(operation, caller, base_url)
+      "PUT" -> handle_put_operation(operation, caller, base_url)
+      "PATCH" -> handle_patch_operation(operation, caller, base_url)
       "DELETE" -> handle_delete_operation(operation, base_url)
     end
   rescue
@@ -197,12 +198,12 @@ defmodule ExScim.Operations.Bulk do
       }
   end
 
-  defp handle_post_operation(operation, base_url) do
+  defp handle_post_operation(operation, caller, base_url) do
     {resource_type, _resource_id} = parse_path(operation.path)
 
     case resource_type do
       :users ->
-        case Users.create_user_from_scim(operation.data) do
+        case Users.create_user_from_scim(operation.data, caller) do
           {:ok, user} ->
             %{
               "method" => operation.method,
@@ -223,7 +224,7 @@ defmodule ExScim.Operations.Bulk do
         end
 
       :groups ->
-        case Groups.create_group_from_scim(operation.data) do
+        case Groups.create_group_from_scim(operation.data, caller) do
           {:ok, group} ->
             %{
               "method" => operation.method,
@@ -253,12 +254,12 @@ defmodule ExScim.Operations.Bulk do
     end
   end
 
-  defp handle_put_operation(operation, base_url) do
+  defp handle_put_operation(operation, caller, base_url) do
     {resource_type, resource_id} = parse_path(operation.path)
 
     case resource_type do
       :users ->
-        case Users.replace_user_from_scim(resource_id, operation.data) do
+        case Users.replace_user_from_scim(resource_id, operation.data, caller) do
           {:ok, user} ->
             %{
               "method" => operation.method,
@@ -287,7 +288,7 @@ defmodule ExScim.Operations.Bulk do
         end
 
       :groups ->
-        case Groups.replace_group_from_scim(resource_id, operation.data) do
+        case Groups.replace_group_from_scim(resource_id, operation.data, caller) do
           {:ok, group} ->
             %{
               "method" => operation.method,
@@ -325,12 +326,12 @@ defmodule ExScim.Operations.Bulk do
     end
   end
 
-  defp handle_patch_operation(operation, base_url) do
+  defp handle_patch_operation(operation, caller, base_url) do
     {resource_type, resource_id} = parse_path(operation.path)
 
     case resource_type do
       :users ->
-        case Users.patch_user_from_scim(resource_id, operation.data) do
+        case Users.patch_user_from_scim(resource_id, operation.data, caller) do
           {:ok, user} ->
             %{
               "method" => operation.method,
@@ -359,7 +360,7 @@ defmodule ExScim.Operations.Bulk do
         end
 
       :groups ->
-        case Groups.patch_group_from_scim(resource_id, operation.data) do
+        case Groups.patch_group_from_scim(resource_id, operation.data, caller) do
           {:ok, group} ->
             %{
               "method" => operation.method,

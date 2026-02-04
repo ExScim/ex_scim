@@ -27,8 +27,10 @@ defmodule ExScimPhoenix.Controller.UserController do
   @max_count 200
 
   def index(conn, params) do
+    caller = conn.assigns.scim_principal
+
     with {:ok, parsed_params} <- parse_list_params(params),
-         {:ok, users, total_results} <- Users.list_users_scim(parsed_params) do
+         {:ok, users, total_results} <- Users.list_users_scim(caller, parsed_params) do
       response = %{
         "schemas" => [@scim_list_response_schema],
         "totalResults" => total_results,
@@ -39,18 +41,26 @@ defmodule ExScimPhoenix.Controller.UserController do
 
       json(conn, response)
     else
+      {:error, :mapping_error} ->
+        send_scim_error(conn, :internal_server_error, :internal_error, "Error mapping user data")
+
       {:error, reason} ->
         send_scim_error(conn, :bad_request, :invalid_filter, "Invalid query: #{reason}")
     end
   end
 
   def show(conn, %{"id" => id}) do
-    case Users.get_user(id) do
+    caller = conn.assigns.scim_principal
+
+    case Users.get_user(id, caller) do
       {:ok, user} ->
         json(conn, user)
 
       {:error, :not_found} ->
         send_scim_error(conn, :not_found, :not_found, "User #{id} not found")
+
+      {:error, :mapping_error} ->
+        send_scim_error(conn, :internal_server_error, :internal_error, "Error mapping user data")
 
       {:error, reason} ->
         Logger.error("Error retrieving user #{id}: #{inspect(reason)}")
@@ -59,7 +69,9 @@ defmodule ExScimPhoenix.Controller.UserController do
   end
 
   def create(conn, user_params) do
-    case Users.create_user_from_scim(user_params) do
+    caller = conn.assigns.scim_principal
+
+    case Users.create_user_from_scim(user_params, caller) do
       {:ok, user} ->
         conn
         |> put_status(:created)
@@ -69,6 +81,9 @@ defmodule ExScimPhoenix.Controller.UserController do
 
       {:error, :conflict} ->
         send_scim_error(conn, :conflict, :uniqueness, "User already exists")
+
+      {:error, :mapping_error} ->
+        send_scim_error(conn, :internal_server_error, :internal_error, "Error mapping user data")
 
       {:error, errors} when is_list(errors) ->
         send_validation_errors(conn, errors)
@@ -80,10 +95,11 @@ defmodule ExScimPhoenix.Controller.UserController do
   end
 
   def update(conn, %{"id" => id} = user_params) do
+    caller = conn.assigns.scim_principal
     # Remove id from params to avoid conflicts
     user_params = Map.delete(user_params, "id")
 
-    case Users.replace_user_from_scim(id, user_params) do
+    case Users.replace_user_from_scim(id, user_params, caller) do
       {:ok, user} ->
         conn
         |> maybe_put_resp_header("etag", get_in(user, ["meta", "etag"]))
@@ -95,6 +111,9 @@ defmodule ExScimPhoenix.Controller.UserController do
       {:error, :conflict} ->
         send_scim_error(conn, :conflict, :uniqueness, "User data conflicts with existing user")
 
+      {:error, :mapping_error} ->
+        send_scim_error(conn, :internal_server_error, :internal_error, "Error mapping user data")
+
       {:error, errors} when is_list(errors) ->
         send_validation_errors(conn, errors)
 
@@ -105,10 +124,11 @@ defmodule ExScimPhoenix.Controller.UserController do
   end
 
   def patch(conn, %{"id" => id} = patch_params) do
+    caller = conn.assigns.scim_principal
     # Remove id from params to avoid conflicts
     patch_params = Map.delete(patch_params, "id")
 
-    case Users.patch_user_from_scim(id, patch_params) do
+    case Users.patch_user_from_scim(id, patch_params, caller) do
       {:ok, user} ->
         conn
         |> maybe_put_resp_header("etag", get_in(user, ["meta", "etag"]))
@@ -135,6 +155,9 @@ defmodule ExScimPhoenix.Controller.UserController do
           :invalid_path,
           "Path attribute is invalid or malformed"
         )
+
+      {:error, :mapping_error} ->
+        send_scim_error(conn, :internal_server_error, :internal_error, "Error mapping user data")
 
       {:error, errors} when is_list(errors) ->
         send_validation_errors(conn, errors)

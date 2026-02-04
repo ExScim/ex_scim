@@ -4,8 +4,10 @@ defmodule ExScim.Groups.Mapper.Adapter do
   @type group_struct :: struct() | map()
   @type scim_data :: map()
 
-  @callback from_scim(scim_data()) :: group_struct()
-  @callback to_scim(group_struct(), keyword()) :: scim_data()
+  @callback from_scim(scim_data(), ExScim.Auth.Principal.t()) ::
+              {:ok, group_struct()} | {:error, atom() | term()}
+  @callback to_scim(group_struct(), ExScim.Auth.Principal.t(), keyword()) ::
+              {:ok, scim_data()} | {:error, atom() | term()}
 
   @callback get_meta_created(group_struct()) :: DateTime.t() | nil
   @callback get_meta_last_modified(group_struct()) :: DateTime.t() | nil

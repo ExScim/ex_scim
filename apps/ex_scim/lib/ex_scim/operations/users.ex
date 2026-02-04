@@ -9,67 +9,70 @@ defmodule ExScim.Operations.Users do
   alias ExScim.Users.Mapper
   alias ExScim.Users.Patcher
 
-  def get_user(id) do
-    with {:ok, domain_user} <- Storage.get_user(id) do
-      {:ok, Mapper.to_scim(domain_user)}
+  def get_user(id, caller) do
+    with {:ok, domain_user} <- Storage.get_user(id),
+         {:ok, scim_user} <- Mapper.to_scim(domain_user, caller) do
+      {:ok, scim_user}
     end
   end
 
-  def get_user_by_username(username) do
-    with {:ok, domain_user} <- Storage.get_user_by_username(username) do
-      {:ok, Mapper.to_scim(domain_user)}
+  def get_user_by_username(username, caller) do
+    with {:ok, domain_user} <- Storage.get_user_by_username(username),
+         {:ok, scim_user} <- Mapper.to_scim(domain_user, caller) do
+      {:ok, scim_user}
     end
   end
 
-  def get_user_by_external_id(external_id) do
-    with {:ok, domain_user} <- Storage.get_user_by_external_id(external_id) do
-      {:ok, Mapper.to_scim(domain_user)}
+  def get_user_by_external_id(external_id, caller) do
+    with {:ok, domain_user} <- Storage.get_user_by_external_id(external_id),
+         {:ok, scim_user} <- Mapper.to_scim(domain_user, caller) do
+      {:ok, scim_user}
     end
   end
 
-  def list_users_scim(opts \\ %{}) do
+  def list_users_scim(caller, opts \\ %{}) do
     with {:ok, filter_ast} <- parse_filter(Map.get(opts, "filter")) do
       sort_opts = build_sort_opts(Map.get(opts, :sort_by), Map.get(opts, :sort_order))
       pagination_opts = build_pagination_opts(Map.get(opts, :start_index), Map.get(opts, :count))
 
       with {:ok, domain_users, total} <-
              Storage.list_users(filter_ast, sort_opts, pagination_opts) do
-        scim_users = Enum.map(domain_users, &Mapper.to_scim/1)
-        {:ok, scim_users, total}
+        map_all_users(domain_users, caller, total)
       end
     end
   end
 
-  def create_user_from_scim(scim_data) do
+  def create_user_from_scim(scim_data, caller) do
     with {:ok, schema_validated_data} <- Validator.validate_scim_schema(scim_data),
-         mapped_data <- Mapper.from_scim(schema_validated_data),
+         {:ok, mapped_data} <- Mapper.from_scim(schema_validated_data, caller),
          data_with_id <- maybe_set_id(mapped_data),
          data_with_metadata <- Metadata.update_metadata(data_with_id, "User"),
-         {:ok, stored_user} <- Storage.create_user(data_with_metadata) do
-      {:ok, Mapper.to_scim(stored_user)}
-    else
-      error -> error
+         {:ok, stored_user} <- Storage.create_user(data_with_metadata),
+         {:ok, scim_user} <- Mapper.to_scim(stored_user, caller) do
+      {:ok, scim_user}
     end
   end
 
-  def replace_user_from_scim(user_id, scim_data) do
+  def replace_user_from_scim(user_id, scim_data, caller) do
     with {:ok, _existing_user} <- Storage.get_user(user_id),
          {:ok, schema_validated_data} <- Validator.validate_scim_schema(scim_data),
-         user_struct <- Mapper.from_scim(schema_validated_data),
+         {:ok, user_struct} <- Mapper.from_scim(schema_validated_data, caller),
          user_with_id <- Resource.set_id(user_struct, user_id),
          user_with_meta <- Metadata.update_metadata(user_with_id, "User"),
-         {:ok, stored_user} <- Storage.replace_user(user_id, user_with_meta) do
-      {:ok, Mapper.to_scim(stored_user)}
+         {:ok, stored_user} <- Storage.replace_user(user_id, user_with_meta),
+         {:ok, scim_user} <- Mapper.to_scim(stored_user, caller) do
+      {:ok, scim_user}
     end
   end
 
-  def patch_user_from_scim(user_id, scim_data) do
+  def patch_user_from_scim(user_id, scim_data, caller) do
     with {:ok, domain_user} <- Storage.get_user(user_id),
          {:ok, schema_validated_data} <- Validator.validate_scim_partial(scim_data, :patch),
          {:ok, patched_user} <- Patcher.patch(domain_user, schema_validated_data),
          user_with_meta <- Metadata.update_metadata(patched_user, "User"),
-         {:ok, stored_user} <- Storage.update_user(user_id, user_with_meta) do
-      {:ok, Mapper.to_scim(stored_user)}
+         {:ok, stored_user} <- Storage.update_user(user_id, user_with_meta),
+         {:ok, scim_user} <- Mapper.to_scim(stored_user, caller) do
+      {:ok, scim_user}
     end
   end
 
@@ -81,6 +84,20 @@ defmodule ExScim.Operations.Users do
     case Resource.get_id(user_struct) do
       nil -> Resource.set_id(user_struct, IdGenerator.generate_uuid())
       _id -> user_struct
+    end
+  end
+
+  defp map_all_users(domain_users, caller, total) do
+    domain_users
+    |> Enum.reduce_while({:ok, []}, fn user, {:ok, acc} ->
+      case Mapper.to_scim(user, caller) do
+        {:ok, scim_user} -> {:cont, {:ok, [scim_user | acc]}}
+        {:error, _} = error -> {:halt, error}
+      end
+    end)
+    |> case do
+      {:ok, scim_users} -> {:ok, Enum.reverse(scim_users), total}
+      error -> error
     end
   end
 

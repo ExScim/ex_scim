@@ -26,6 +26,8 @@ defmodule ExScimPhoenix.Controller.BulkController do
   @default_fail_on_errors 0
 
   def bulk(conn, bulk_request) do
+    caller = conn.assigns.scim_principal
+
     # Get configuration from application config
     bulk_config = get_bulk_config()
     base_url = Config.base_url()
@@ -38,7 +40,7 @@ defmodule ExScimPhoenix.Controller.BulkController do
       base_url: base_url
     ]
 
-    case Bulk.process_bulk_request(bulk_request, opts) do
+    case Bulk.process_bulk_request(bulk_request, caller, opts) do
       {:ok, bulk_response} ->
         # Determine overall status based on individual operation results
         status_code = determine_bulk_status(bulk_response["Operations"])

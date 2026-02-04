@@ -2,13 +2,17 @@ defmodule ExScim.BulkTest do
   use ExUnit.Case, async: true
 
   alias ExScim.Operations.Bulk
+  alias ExScim.Auth.Principal
 
-  describe "process_bulk_request/2" do
+  # Test caller for bulk operations
+  @test_caller %Principal{id: "test-bulk-caller", scopes: ["scim:write"]}
+
+  describe "process_bulk_request/3" do
     test "validates bulk request structure" do
       invalid_request = %{}
 
       assert {:error, "Invalid or missing schemas in bulk request"} =
-               Bulk.process_bulk_request(invalid_request)
+               Bulk.process_bulk_request(invalid_request, @test_caller)
     end
 
     test "validates operations are present" do
@@ -17,7 +21,7 @@ defmodule ExScim.BulkTest do
       }
 
       assert {:error, "Missing Operations field in bulk request"} =
-               Bulk.process_bulk_request(invalid_request)
+               Bulk.process_bulk_request(invalid_request, @test_caller)
     end
 
     test "validates operations array is not empty" do
@@ -27,7 +31,7 @@ defmodule ExScim.BulkTest do
       }
 
       assert {:error, "Operations array cannot be empty"} =
-               Bulk.process_bulk_request(invalid_request)
+               Bulk.process_bulk_request(invalid_request, @test_caller)
     end
 
     test "validates operation structure" do
@@ -41,7 +45,7 @@ defmodule ExScim.BulkTest do
         ]
       }
 
-      assert {:error, error_msg} = Bulk.process_bulk_request(invalid_request)
+      assert {:error, error_msg} = Bulk.process_bulk_request(invalid_request, @test_caller)
       assert String.contains?(error_msg, "missing required 'bulkId' field")
     end
 
@@ -56,7 +60,7 @@ defmodule ExScim.BulkTest do
         ]
       }
 
-      assert {:error, error_msg} = Bulk.process_bulk_request(invalid_request)
+      assert {:error, error_msg} = Bulk.process_bulk_request(invalid_request, @test_caller)
       assert String.contains?(error_msg, "has invalid method")
     end
 
@@ -76,7 +80,7 @@ defmodule ExScim.BulkTest do
         "Operations" => operations
       }
 
-      assert {:error, error_msg} = Bulk.process_bulk_request(invalid_request)
+      assert {:error, error_msg} = Bulk.process_bulk_request(invalid_request, @test_caller)
       assert String.contains?(error_msg, "Too many operations")
     end
 
@@ -97,7 +101,7 @@ defmodule ExScim.BulkTest do
         ]
       }
 
-      assert {:ok, response} = Bulk.process_bulk_request(valid_request)
+      assert {:ok, response} = Bulk.process_bulk_request(valid_request, @test_caller)
       assert response["schemas"] == ["urn:ietf:params:scim:api:messages:2.0:BulkResponse"]
       assert is_list(response["Operations"])
       assert length(response["Operations"]) == 1
@@ -135,7 +139,7 @@ defmodule ExScim.BulkTest do
         ]
       }
 
-      assert {:ok, response} = Bulk.process_bulk_request(valid_request)
+      assert {:ok, response} = Bulk.process_bulk_request(valid_request, @test_caller)
       assert response["schemas"] == ["urn:ietf:params:scim:api:messages:2.0:BulkResponse"]
       assert is_list(response["Operations"])
     end
@@ -152,7 +156,7 @@ defmodule ExScim.BulkTest do
         ]
       }
 
-      assert {:ok, response} = Bulk.process_bulk_request(valid_request)
+      assert {:ok, response} = Bulk.process_bulk_request(valid_request, @test_caller)
       operation_result = List.first(response["Operations"])
       assert operation_result["method"] == "DELETE"
       assert operation_result["bulkId"] == "bulk_delete_1"
@@ -183,7 +187,7 @@ defmodule ExScim.BulkTest do
         ]
       }
 
-      assert {:ok, response} = Bulk.process_bulk_request(valid_request)
+      assert {:ok, response} = Bulk.process_bulk_request(valid_request, @test_caller)
       assert length(response["Operations"]) == 3
 
       # All operations should return 404 since resources don't exist

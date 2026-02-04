@@ -5,10 +5,10 @@ defmodule ExScim.Groups.Mapper.AdapterTest do
     use ExScim.Groups.Mapper.Adapter
 
     @impl true
-    def from_scim(data), do: data
+    def from_scim(data, _caller), do: {:ok, data}
 
     @impl true
-    def to_scim(group, opts), do: %{"meta" => format_meta(group, opts)}
+    def to_scim(group, _caller, opts), do: {:ok, %{"meta" => format_meta(group, opts)}}
   end
 
   defmodule CustomTimestampMapper do
@@ -18,10 +18,10 @@ defmodule ExScim.Groups.Mapper.AdapterTest do
     def get_meta_last_modified(group), do: group.updated_at
 
     @impl true
-    def from_scim(data), do: data
+    def from_scim(data, _caller), do: {:ok, data}
 
     @impl true
-    def to_scim(group, opts), do: %{"meta" => format_meta(group, opts)}
+    def to_scim(group, _caller, opts), do: {:ok, %{"meta" => format_meta(group, opts)}}
   end
 
   describe "default implementations" do

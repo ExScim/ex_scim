@@ -5,10 +5,10 @@ defmodule ExScim.Users.Mapper.AdapterTest do
     use ExScim.Users.Mapper.Adapter
 
     @impl true
-    def from_scim(data), do: data
+    def from_scim(data, _caller), do: {:ok, data}
 
     @impl true
-    def to_scim(user, opts), do: %{"meta" => format_meta(user, opts)}
+    def to_scim(user, _caller, opts), do: {:ok, %{"meta" => format_meta(user, opts)}}
   end
 
   defmodule CustomTimestampMapper do
@@ -18,10 +18,10 @@ defmodule ExScim.Users.Mapper.AdapterTest do
     def get_meta_last_modified(user), do: user.updated_at
 
     @impl true
-    def from_scim(data), do: data
+    def from_scim(data, _caller), do: {:ok, data}
 
     @impl true
-    def to_scim(user, opts), do: %{"meta" => format_meta(user, opts)}
+    def to_scim(user, _caller, opts), do: {:ok, %{"meta" => format_meta(user, opts)}}
   end
 
   defmodule VersionCounterMapper do
@@ -30,10 +30,10 @@ defmodule ExScim.Users.Mapper.AdapterTest do
     def get_meta_version(user), do: "\"#{user.version}\""
 
     @impl true
-    def from_scim(data), do: data
+    def from_scim(data, _caller), do: {:ok, data}
 
     @impl true
-    def to_scim(user, opts), do: %{"meta" => format_meta(user, opts)}
+    def to_scim(user, _caller, opts), do: {:ok, %{"meta" => format_meta(user, opts)}}
   end
 
   describe "default implementations" do

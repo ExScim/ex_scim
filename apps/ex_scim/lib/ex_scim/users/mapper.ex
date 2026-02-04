@@ -1,14 +1,14 @@
 defmodule ExScim.Users.Mapper do
-  @behaviour ExScim.Users.Mapper.Adapter
-
-  @impl true
-  def from_scim(scim_data) do
-    adapter().from_scim(scim_data)
+  @spec from_scim(map(), ExScim.Auth.Principal.t()) ::
+          {:ok, struct() | map()} | {:error, atom() | term()}
+  def from_scim(scim_data, caller) do
+    adapter().from_scim(scim_data, caller)
   end
 
-  @impl true
-  def to_scim(user_struct, opts \\ []) do
-    adapter().to_scim(user_struct, opts)
+  @spec to_scim(struct() | map(), ExScim.Auth.Principal.t(), keyword()) ::
+          {:ok, map()} | {:error, atom() | term()}
+  def to_scim(user_struct, caller, opts \\ []) do
+    adapter().to_scim(user_struct, caller, opts)
   end
 
   def adapter do

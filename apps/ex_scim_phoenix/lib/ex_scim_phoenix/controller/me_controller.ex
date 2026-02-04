@@ -23,8 +23,8 @@ defmodule ExScimPhoenix.Controller.MeController do
 
   def show(conn, _params) do
     case conn.assigns[:scim_principal] do
-      %Principal{id: user_id} ->
-        with {:ok, user} <- Users.get_user(user_id) do
+      %Principal{id: user_id} = caller ->
+        with {:ok, user} <- Users.get_user(user_id, caller) do
           conn
           |> put_resp_header("location", scim_me_location(conn))
           |> json(user)
@@ -39,6 +39,9 @@ defmodule ExScimPhoenix.Controller.MeController do
 
           {:error, :not_found} ->
             send_scim_error(conn, :not_found, :not_found, "Authenticated user not found")
+
+          {:error, :mapping_error} ->
+            send_scim_error(conn, :internal_server_error, :internal_error, "Error mapping user data")
         end
 
       _ ->
@@ -52,10 +55,10 @@ defmodule ExScimPhoenix.Controller.MeController do
   end
 
   def create(conn, user_params) do
-    principal = conn.assigns[:scim_principal]
+    caller = conn.assigns[:scim_principal]
 
-    with {:ok, enhanced_params} <- enhance_params_for_me_create(user_params, principal),
-         {:ok, user} <- Users.create_user_from_scim(enhanced_params) do
+    with {:ok, enhanced_params} <- enhance_params_for_me_create(user_params, caller),
+         {:ok, user} <- Users.create_user_from_scim(enhanced_params, caller) do
       conn
       |> put_status(:created)
       |> put_resp_header("location", scim_me_location(conn))
@@ -81,6 +84,9 @@ defmodule ExScimPhoenix.Controller.MeController do
           "User already exists for authenticated subject"
         )
 
+      {:error, :mapping_error} ->
+        send_scim_error(conn, :internal_server_error, :internal_error, "Error mapping user data")
+
       {:error, errors} when is_list(errors) ->
         send_validation_errors(conn, errors)
 
@@ -91,10 +97,11 @@ defmodule ExScimPhoenix.Controller.MeController do
   end
 
   def update(conn, user_params) do
-    user_id = conn.assigns[:scim_principal].id
+    caller = conn.assigns[:scim_principal]
+    user_id = caller.id
     clean_params = Map.delete(user_params, "id")
 
-    case Users.replace_user_from_scim(user_id, clean_params) do
+    case Users.replace_user_from_scim(user_id, clean_params, caller) do
       {:ok, user} ->
         conn
         |> put_resp_header("location", scim_me_location(conn))
@@ -107,6 +114,9 @@ defmodule ExScimPhoenix.Controller.MeController do
       {:error, :conflict} ->
         send_scim_error(conn, :conflict, :uniqueness, "User data conflicts with existing user")
 
+      {:error, :mapping_error} ->
+        send_scim_error(conn, :internal_server_error, :internal_error, "Error mapping user data")
+
       {:error, errors} when is_list(errors) ->
         send_validation_errors(conn, errors)
 
@@ -117,10 +127,11 @@ defmodule ExScimPhoenix.Controller.MeController do
   end
 
   def patch(conn, patch_params) do
-    user_id = conn.assigns[:scim_principal].id
+    caller = conn.assigns[:scim_principal]
+    user_id = caller.id
     clean_params = Map.delete(patch_params, "id")
 
-    case Users.patch_user_from_scim(user_id, clean_params) do
+    case Users.patch_user_from_scim(user_id, clean_params, caller) do
       {:ok, user} ->
         conn
         |> put_resp_header("location", scim_me_location(conn))
@@ -148,6 +159,9 @@ defmodule ExScimPhoenix.Controller.MeController do
           :invalid_path,
           "Path attribute is invalid or malformed"
         )
+
+      {:error, :mapping_error} ->
+        send_scim_error(conn, :internal_server_error, :internal_error, "Error mapping user data")
 
       {:error, errors} when is_list(errors) ->
         send_validation_errors(conn, errors)

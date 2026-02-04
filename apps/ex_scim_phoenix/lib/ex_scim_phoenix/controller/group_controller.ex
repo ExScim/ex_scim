@@ -27,8 +27,10 @@ defmodule ExScimPhoenix.Controller.GroupController do
   @max_count 200
 
   def index(conn, params) do
+    caller = conn.assigns.scim_principal
+
     with {:ok, parsed_params} <- parse_list_params(params),
-         {:ok, groups, total_results} <- Groups.list_groups_scim(parsed_params) do
+         {:ok, groups, total_results} <- Groups.list_groups_scim(caller, parsed_params) do
       response = %{
         "schemas" => [@scim_list_response_schema],
         "totalResults" => total_results,
@@ -39,18 +41,26 @@ defmodule ExScimPhoenix.Controller.GroupController do
 
       json(conn, response)
     else
+      {:error, :mapping_error} ->
+        send_scim_error(conn, :internal_server_error, :internal_error, "Error mapping group data")
+
       {:error, reason} ->
         send_scim_error(conn, :bad_request, :invalid_filter, "Invalid query: #{reason}")
     end
   end
 
   def show(conn, %{"id" => id}) do
-    case Groups.get_group(id) do
+    caller = conn.assigns.scim_principal
+
+    case Groups.get_group(id, caller) do
       {:ok, group} ->
         json(conn, group)
 
       {:error, :not_found} ->
         send_scim_error(conn, :not_found, :not_found, "Group #{id} not found")
+
+      {:error, :mapping_error} ->
+        send_scim_error(conn, :internal_server_error, :internal_error, "Error mapping group data")
 
       {:error, reason} ->
         Logger.error("Error retrieving group #{id}: #{inspect(reason)}")
@@ -59,7 +69,9 @@ defmodule ExScimPhoenix.Controller.GroupController do
   end
 
   def create(conn, group_params) do
-    case Groups.create_group_from_scim(group_params) do
+    caller = conn.assigns.scim_principal
+
+    case Groups.create_group_from_scim(group_params, caller) do
       {:ok, group} ->
         conn
         |> put_status(:created)
@@ -69,6 +81,9 @@ defmodule ExScimPhoenix.Controller.GroupController do
 
       {:error, :conflict} ->
         send_scim_error(conn, :conflict, :uniqueness, "Group already exists")
+
+      {:error, :mapping_error} ->
+        send_scim_error(conn, :internal_server_error, :internal_error, "Error mapping group data")
 
       {:error, errors} when is_list(errors) ->
         send_validation_errors(conn, errors)
@@ -80,10 +95,11 @@ defmodule ExScimPhoenix.Controller.GroupController do
   end
 
   def update(conn, %{"id" => id} = group_params) do
+    caller = conn.assigns.scim_principal
     # Remove id from params to avoid conflicts
     group_params = Map.delete(group_params, "id")
 
-    case Groups.replace_group_from_scim(id, group_params) do
+    case Groups.replace_group_from_scim(id, group_params, caller) do
       {:ok, group} ->
         conn
         |> maybe_put_resp_header("etag", get_in(group, ["meta", "etag"]))
@@ -95,6 +111,9 @@ defmodule ExScimPhoenix.Controller.GroupController do
       {:error, :conflict} ->
         send_scim_error(conn, :conflict, :uniqueness, "Group data conflicts with existing group")
 
+      {:error, :mapping_error} ->
+        send_scim_error(conn, :internal_server_error, :internal_error, "Error mapping group data")
+
       {:error, errors} when is_list(errors) ->
         send_validation_errors(conn, errors)
 
@@ -105,10 +124,11 @@ defmodule ExScimPhoenix.Controller.GroupController do
   end
 
   def patch(conn, %{"id" => id} = patch_params) do
+    caller = conn.assigns.scim_principal
     # Remove id from params to avoid conflicts
     patch_params = Map.delete(patch_params, "id")
 
-    case Groups.patch_group_from_scim(id, patch_params) do
+    case Groups.patch_group_from_scim(id, patch_params, caller) do
       {:ok, group} ->
         conn
         |> maybe_put_resp_header("etag", get_in(group, ["meta", "etag"]))
@@ -135,6 +155,9 @@ defmodule ExScimPhoenix.Controller.GroupController do
           :invalid_path,
           "Path attribute is invalid or malformed"
         )
+
+      {:error, :mapping_error} ->
+        send_scim_error(conn, :internal_server_error, :internal_error, "Error mapping group data")
 
       {:error, errors} when is_list(errors) ->
         send_validation_errors(conn, errors)
