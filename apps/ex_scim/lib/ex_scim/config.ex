@@ -166,4 +166,34 @@ defmodule ExScim.Config do
   def authentication_schemes do
     Application.get_env(:ex_scim, :authentication_schemes, [])
   end
+
+  @doc """
+  Returns the list of schema modules to use for SCIM schema definitions.
+
+  Each module must implement the Schema Builder DSL and provide `schema_id/0`
+  and `to_map/0` functions.
+
+  ## Configuration
+
+      config :ex_scim, :schema_modules, [
+        MyApp.Schemas.User,
+        MyApp.Schemas.Group
+      ]
+
+  ## Default
+
+  When not configured, defaults to the built-in schema definitions:
+
+  - `ExScim.Schema.Definitions.User`
+  - `ExScim.Schema.Definitions.EnterpriseUser`
+  - `ExScim.Schema.Definitions.Group`
+  """
+  @spec schema_modules() :: [module()]
+  def schema_modules do
+    Application.get_env(:ex_scim, :schema_modules, [
+      ExScim.Schema.Definitions.User,
+      ExScim.Schema.Definitions.EnterpriseUser,
+      ExScim.Schema.Definitions.Group
+    ])
+  end
 end
