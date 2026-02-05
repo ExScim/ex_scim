@@ -11,7 +11,7 @@ defmodule ExScimPhoenix.Controller.MeController do
   alias ExScim.Config
   import ExScimPhoenix.ErrorResponse
 
-  plug(ExScimPhoenix.Plugs.RequireScopes, [scopes: "scim:me:read"] when action in [:read])
+  plug(ExScimPhoenix.Plugs.RequireScopes, [scopes: "scim:me:read"] when action in [:show])
   plug(ExScimPhoenix.Plugs.RequireScopes, [scopes: "scim:me:create"] when action in [:create])
 
   plug(
@@ -41,7 +41,12 @@ defmodule ExScimPhoenix.Controller.MeController do
             send_scim_error(conn, :not_found, :not_found, "Authenticated user not found")
 
           {:error, :mapping_error} ->
-            send_scim_error(conn, :internal_server_error, :internal_error, "Error mapping user data")
+            send_scim_error(
+              conn,
+              :internal_server_error,
+              :internal_error,
+              "Error mapping user data"
+            )
         end
 
       _ ->
