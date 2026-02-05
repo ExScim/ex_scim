@@ -35,16 +35,6 @@ defmodule ExScimEcto.StorageAdapter do
   end
 
   @impl true
-  def get_user_by_username(username) do
-    get_resource_by(&user_schema/0, :user_name, username)
-  end
-
-  @impl true
-  def get_user_by_external_id(external_id) do
-    get_resource_by(&user_schema/0, :external_id, external_id)
-  end
-
-  @impl true
   def list_users(filter_ast, sort_opts, pagination_opts) do
     {user_schema, associations, _lookup_key} = user_schema()
 
@@ -140,16 +130,6 @@ defmodule ExScimEcto.StorageAdapter do
   def get_group(id) do
     {_schema, _associations, lookup_key} = group_schema()
     get_resource_by(&group_schema/0, lookup_key, id)
-  end
-
-  @impl true
-  def get_group_by_display_name(display_name) do
-    get_resource_by(&group_schema/0, :display_name, display_name)
-  end
-
-  @impl true
-  def get_group_by_external_id(external_id) do
-    get_resource_by(&group_schema/0, :external_id, external_id)
   end
 
   @impl true

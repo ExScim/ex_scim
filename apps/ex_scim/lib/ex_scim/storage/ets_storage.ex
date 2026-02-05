@@ -26,20 +26,6 @@ defmodule ExScim.Storage.EtsStorage do
     end
   end
 
-  def get_user_by_username(username) do
-    case :ets.lookup(@username_index, username) do
-      [{^username, user_id}] -> get_user(user_id)
-      [] -> {:error, :not_found}
-    end
-  end
-
-  def get_user_by_external_id(external_id) do
-    case :ets.lookup(@external_id_index, external_id) do
-      [{^external_id, user_id}] -> get_user(user_id)
-      [] -> {:error, :not_found}
-    end
-  end
-
   def list_users(filter_ast \\ nil, sort_opts \\ [], pagination_opts \\ []) do
     GenServer.call(__MODULE__, {:list_users, filter_ast, sort_opts, pagination_opts})
   end
@@ -75,20 +61,6 @@ defmodule ExScim.Storage.EtsStorage do
   def get_group(id) do
     case :ets.lookup(@groups_table_name, id) do
       [{^id, group_data}] -> {:ok, group_data}
-      [] -> {:error, :not_found}
-    end
-  end
-
-  def get_group_by_display_name(display_name) do
-    case :ets.lookup(@groups_display_name_index, display_name) do
-      [{^display_name, group_id}] -> get_group(group_id)
-      [] -> {:error, :not_found}
-    end
-  end
-
-  def get_group_by_external_id(external_id) do
-    case :ets.lookup(@groups_external_id_index, external_id) do
-      [{^external_id, group_id}] -> get_group(group_id)
       [] -> {:error, :not_found}
     end
   end
@@ -383,15 +355,31 @@ defmodule ExScim.Storage.EtsStorage do
 
   defp generate_id, do: ExScim.Resources.IdGenerator.generate_uuid()
 
+  defp username_taken?(username) do
+    :ets.member(@username_index, username)
+  end
+
+  defp user_external_id_taken?(external_id) do
+    :ets.member(@external_id_index, external_id)
+  end
+
+  defp display_name_taken?(display_name) do
+    :ets.member(@groups_display_name_index, display_name)
+  end
+
+  defp group_external_id_taken?(external_id) do
+    :ets.member(@groups_external_id_index, external_id)
+  end
+
   defp validate_unique_constraints(user_id, username, external_id) do
     cond do
       user_exists?(user_id) ->
         {:error, :user_id_taken}
 
-      username && match?({:ok, _}, get_user_by_username(username)) ->
+      username && username_taken?(username) ->
         {:error, :username_taken}
 
-      external_id && match?({:ok, _}, get_user_by_external_id(external_id)) ->
+      external_id && user_external_id_taken?(external_id) ->
         {:error, :external_id_taken}
 
       true ->
@@ -407,12 +395,11 @@ defmodule ExScim.Storage.EtsStorage do
          old_external_id
        ) do
     cond do
-      new_username != old_username && new_username &&
-          match?({:ok, _}, get_user_by_username(new_username)) ->
+      new_username != old_username && new_username && username_taken?(new_username) ->
         {:error, :username_taken}
 
       new_external_id != old_external_id && new_external_id &&
-          match?({:ok, _}, get_user_by_external_id(new_external_id)) ->
+          user_external_id_taken?(new_external_id) ->
         {:error, :external_id_taken}
 
       true ->
@@ -472,10 +459,10 @@ defmodule ExScim.Storage.EtsStorage do
       group_exists?(group_id) ->
         {:error, :group_id_taken}
 
-      display_name && match?({:ok, _}, get_group_by_display_name(display_name)) ->
+      display_name && display_name_taken?(display_name) ->
         {:error, :display_name_taken}
 
-      external_id && match?({:ok, _}, get_group_by_external_id(external_id)) ->
+      external_id && group_external_id_taken?(external_id) ->
         {:error, :external_id_taken}
 
       true ->
@@ -492,11 +479,11 @@ defmodule ExScim.Storage.EtsStorage do
        ) do
     cond do
       new_display_name != old_display_name && new_display_name &&
-          match?({:ok, _}, get_group_by_display_name(new_display_name)) ->
+          display_name_taken?(new_display_name) ->
         {:error, :display_name_taken}
 
       new_external_id != old_external_id && new_external_id &&
-          match?({:ok, _}, get_group_by_external_id(new_external_id)) ->
+          group_external_id_taken?(new_external_id) ->
         {:error, :external_id_taken}
 
       true ->

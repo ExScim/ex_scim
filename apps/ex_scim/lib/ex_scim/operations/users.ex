@@ -16,20 +16,6 @@ defmodule ExScim.Operations.Users do
     end
   end
 
-  def get_user_by_username(username, caller) do
-    with {:ok, domain_user} <- Storage.get_user_by_username(username),
-         {:ok, scim_user} <- Mapper.to_scim(domain_user, caller) do
-      {:ok, scim_user}
-    end
-  end
-
-  def get_user_by_external_id(external_id, caller) do
-    with {:ok, domain_user} <- Storage.get_user_by_external_id(external_id),
-         {:ok, scim_user} <- Mapper.to_scim(domain_user, caller) do
-      {:ok, scim_user}
-    end
-  end
-
   def list_users_scim(caller, opts \\ %{}) do
     with {:ok, filter_ast} <- parse_filter(Map.get(opts, "filter")) do
       sort_opts = build_sort_opts(Map.get(opts, :sort_by), Map.get(opts, :sort_order))

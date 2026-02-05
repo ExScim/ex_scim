@@ -16,20 +16,6 @@ defmodule ExScim.Operations.Groups do
     end
   end
 
-  def get_group_by_display_name(display_name, caller) do
-    with {:ok, domain_group} <- Storage.get_group_by_display_name(display_name),
-         {:ok, scim_group} <- Mapper.to_scim(domain_group, caller) do
-      {:ok, scim_group}
-    end
-  end
-
-  def get_group_by_external_id(external_id, caller) do
-    with {:ok, domain_group} <- Storage.get_group_by_external_id(external_id),
-         {:ok, scim_group} <- Mapper.to_scim(domain_group, caller) do
-      {:ok, scim_group}
-    end
-  end
-
   def list_groups_scim(caller, opts \\ %{}) do
     with {:ok, filter_ast} <- parse_filter(Map.get(opts, "filter")) do
       sort_opts = build_sort_opts(Map.get(opts, :sort_by), Map.get(opts, :sort_order))

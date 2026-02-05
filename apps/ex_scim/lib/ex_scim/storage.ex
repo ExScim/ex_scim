@@ -36,16 +36,6 @@ defmodule ExScim.Storage do
   end
 
   @impl true
-  def get_user_by_username(binary) do
-    adapter().get_user_by_username(binary)
-  end
-
-  @impl true
-  def get_user_by_external_id(binary) do
-    adapter().get_user_by_external_id(binary)
-  end
-
-  @impl true
   def list_users(filter_ast, sort_opts, pagination_opts) do
     adapter().list_users(filter_ast, sort_opts, pagination_opts)
   end
@@ -89,16 +79,6 @@ defmodule ExScim.Storage do
   @impl true
   def get_group(group_id) do
     adapter().get_group(group_id)
-  end
-
-  @impl true
-  def get_group_by_display_name(display_name) do
-    adapter().get_group_by_display_name(display_name)
-  end
-
-  @impl true
-  def get_group_by_external_id(external_id) do
-    adapter().get_group_by_external_id(external_id)
   end
 
   @impl true
