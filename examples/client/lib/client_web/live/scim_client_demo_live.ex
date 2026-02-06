@@ -129,17 +129,9 @@ defmodule ClientWeb.ScimClientDemoLive do
     enabled_tests = socket.assigns.enabled_tests
 
     enabled_tests =
-      if MapSet.member?(enabled_tests, test_atom) do
-        # Disabling: also disable all dependents
-        dependents = ScimTesting.dependents_of(test_atom)
-        to_disable = MapSet.new([test_atom | dependents])
-        MapSet.difference(enabled_tests, to_disable)
-      else
-        # Enabling: also enable all dependencies
-        dependencies = ScimTesting.dependencies_of(test_atom)
-        to_enable = MapSet.new([test_atom | dependencies])
-        MapSet.union(enabled_tests, to_enable)
-      end
+      if MapSet.member?(enabled_tests, test_atom),
+        do: ScimTesting.disable_test(test_atom, enabled_tests),
+        else: ScimTesting.enable_test(test_atom, enabled_tests)
 
     {:noreply, assign(socket, enabled_tests: enabled_tests)}
   end

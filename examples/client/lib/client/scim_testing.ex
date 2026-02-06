@@ -12,6 +12,11 @@ defmodule Client.ScimTesting do
   alias ExScimClient.Resources.Schemas
   alias ExScimClient.Resources.ResourceTypes
 
+  @first_names ["John", "Jane", "Alice", "Bob", "Charlie", "Diana", "Eve", "Frank"]
+  @last_names ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis"]
+  @job_titles ["Software Engineer", "Product Manager", "Data Analyst", "Designer",
+               "Developer", "Consultant", "Architect", "Manager"]
+
   @test_definitions [
     %{
       id: :create_user,
@@ -178,6 +183,22 @@ defmodule Client.ScimTesting do
   end
 
   @doc """
+  Enables a test and all its dependencies in the enabled tests set.
+  """
+  def enable_test(test_id, enabled_tests) do
+    to_enable = MapSet.new([test_id | dependencies_of(test_id)])
+    MapSet.union(enabled_tests, to_enable)
+  end
+
+  @doc """
+  Disables a test and all its dependents in the enabled tests set.
+  """
+  def disable_test(test_id, enabled_tests) do
+    to_disable = MapSet.new([test_id | dependents_of(test_id)])
+    MapSet.difference(enabled_tests, to_disable)
+  end
+
+  @doc """
   Runs all SCIM tests in sequence.
 
   This function orchestrates the entire test suite, sending progress messages
@@ -279,17 +300,17 @@ defmodule Client.ScimTesting do
         {:ok, data}
 
       {:error, reason} ->
-        error_message = format_error(reason)
-        send(pid, {:test_failed, test_id, error_message})
-        send(pid, {:log_message, "❌ #{test_id} failed: #{error_message}"})
-        {:error, error_message}
+        report_failure(pid, test_id, format_error(reason))
 
       other ->
-        error_msg = "Unexpected response format: #{inspect(other)}"
-        send(pid, {:test_failed, test_id, error_msg})
-        send(pid, {:log_message, "❌ #{test_id} failed: #{error_msg}"})
-        {:error, error_msg}
+        report_failure(pid, test_id, "Unexpected response format: #{inspect(other)}")
     end
+  end
+
+  defp report_failure(pid, test_id, error_message) do
+    send(pid, {:test_failed, test_id, error_message})
+    send(pid, {:log_message, "❌ #{test_id} failed: #{error_message}"})
+    {:error, error_message}
   end
 
   defp format_error(reason) when is_binary(reason), do: reason
@@ -382,10 +403,8 @@ defmodule Client.ScimTesting do
 
   defp generate_random_user do
     random_id = generate_random_string(8)
-    first_name = Enum.random(["John", "Jane", "Alice", "Bob", "Charlie", "Diana", "Eve", "Frank"])
-
-    last_name =
-      Enum.random(["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis"])
+    first_name = Enum.random(@first_names)
+    last_name = Enum.random(@last_names)
 
     %{
       "schemas" => ["urn:ietf:params:scim:schemas:core:2.0:User"],
@@ -418,23 +437,12 @@ defmodule Client.ScimTesting do
     existing_user
     |> put_in(["name", "givenName"], first_name)
     |> put_in(["name", "familyName"], last_name)
-    |> Map.update("displayName", display_name, fn _ -> display_name end)
-    |> Map.update("title", title, fn _ -> title end)
+    |> Map.put("displayName", display_name)
+    |> Map.put("title", title)
   end
 
   defp generate_random_job_title do
-    titles = [
-      "Software Engineer",
-      "Product Manager",
-      "Data Analyst",
-      "Designer",
-      "Developer",
-      "Consultant",
-      "Architect",
-      "Manager"
-    ]
-
-    Enum.random(titles)
+    Enum.random(@job_titles)
   end
 
   defp generate_random_string(length) do
