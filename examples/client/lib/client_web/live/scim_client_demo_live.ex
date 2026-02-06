@@ -43,18 +43,7 @@ defmodule ClientWeb.ScimClientDemoLive do
         %{"base_url" => base_url, "bearer_token" => bearer_token},
         socket
       ) do
-    {normalized_base_url, client} = create_scim_client(base_url, bearer_token)
-
-    socket =
-      socket
-      |> assign(
-        base_url: normalized_base_url,
-        bearer_token: bearer_token,
-        client: client
-      )
-      |> maybe_fetch_capabilities(client)
-
-    {:noreply, socket}
+    {:noreply, apply_config(socket, base_url, bearer_token)}
   end
 
   def handle_event("start_tests", _params, socket) do
@@ -123,18 +112,7 @@ defmodule ClientWeb.ScimClientDemoLive do
         %{"base_url" => base_url, "bearer_token" => bearer_token},
         socket
       ) do
-    {normalized_base_url, client} = create_scim_client(base_url, bearer_token)
-
-    socket =
-      socket
-      |> assign(
-        base_url: normalized_base_url,
-        bearer_token: bearer_token,
-        client: client
-      )
-      |> maybe_fetch_capabilities(client)
-
-    {:noreply, socket}
+    {:noreply, apply_config(socket, base_url, bearer_token)}
   end
 
   def handle_event("refresh_capabilities", _params, socket) do
@@ -239,35 +217,11 @@ defmodule ClientWeb.ScimClientDemoLive do
   end
 
   def handle_info({:test_completed, test_id, result}, socket) do
-    socket =
-      update(socket, :test_results, fn results ->
-        Map.put(results, test_id, %{status: :success, result: result, error: nil})
-      end)
-
-    socket =
-      socket
-      |> update(:progress, fn progress -> min(progress + 10, 100) end)
-      |> then(fn s ->
-        if s.assigns.current_test == test_id, do: assign(s, current_test: nil), else: s
-      end)
-
-    {:noreply, socket}
+    {:noreply, finish_test(socket, test_id, %{status: :success, result: result, error: nil})}
   end
 
   def handle_info({:test_failed, test_id, error}, socket) do
-    socket =
-      update(socket, :test_results, fn results ->
-        Map.put(results, test_id, %{status: :error, result: nil, error: error})
-      end)
-
-    socket =
-      socket
-      |> update(:progress, fn progress -> min(progress + 10, 100) end)
-      |> then(fn s ->
-        if s.assigns.current_test == test_id, do: assign(s, current_test: nil), else: s
-      end)
-
-    {:noreply, socket}
+    {:noreply, finish_test(socket, test_id, %{status: :error, result: nil, error: error})}
   end
 
   def handle_info({:user_created, user_id}, socket) do
@@ -354,6 +308,220 @@ defmodule ClientWeb.ScimClientDemoLive do
       _ ->
         false
     end
+  end
+
+  attr :test_def, :map, required: true
+  attr :test_result, :map, required: true
+  attr :is_enabled, :boolean, required: true
+  attr :client, :any
+  attr :running, :boolean
+  attr :current_test, :atom
+  attr :capabilities, :any
+
+  defp test_card(assigns) do
+    ~H"""
+    <div class={[
+      "card bg-base-100 shadow-xl transition-all duration-200 hover:shadow-2xl border border-base-300 border-l-4",
+      case @test_result.status do
+        :pending -> "border-l-base-300"
+        :running -> "border-l-primary"
+        :success -> "border-l-success"
+        :error -> "border-l-error"
+      end,
+      if(!@is_enabled, do: "opacity-50", else: "")
+    ]}>
+      <div class="card-body">
+        <!-- Test Header -->
+        <div class="flex items-start justify-between mb-4">
+          <div class="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              class="checkbox checkbox-primary"
+              checked={@is_enabled}
+              phx-click="toggle_test"
+              phx-value-test-id={@test_def.id}
+              disabled={@running}
+            />
+            <div class={[
+              "w-10 h-10 rounded-lg flex items-center justify-center text-lg",
+              cond do
+                @test_result.status == :running -> "bg-primary/20"
+                @test_result.status == :success -> "bg-success/20"
+                @test_result.status == :error -> "bg-error/20"
+                is_nil(@client) -> "bg-base-200 opacity-50"
+                @running -> "bg-warning/20"
+                true -> "bg-base-300"
+              end
+            ]}>
+              <.icon name={@test_def.icon}/>
+            </div>
+
+            <div>
+              <h3 class="card-title text-base">{@test_def.name}</h3>
+              <p class="text-sm opacity-70">{@test_def.description}</p>
+              <%= if not @is_enabled and test_unsupported_by_provider?(@capabilities, @test_def.id) do %>
+                <p class="text-xs text-warning mt-0.5">
+                  <.icon name="hero-exclamation-triangle" class="size-3 inline" /> Not supported by provider
+                </p>
+              <% end %>
+            </div>
+          </div>
+
+          <!-- Status Badge -->
+          <div class="flex items-center gap-1">
+            <%= if @test_result.status in [:success, :error] and not @running do %>
+              <button
+                phx-click="retry_test"
+                phx-value-test_id={@test_def.id}
+                class="btn btn-ghost btn-xs btn-circle"
+                title="Re-run this test"
+              >
+                <.icon name="hero-arrow-path" class="size-3.5" />
+              </button>
+            <% end %>
+            <div class={["badge", badge_class(@test_result.status, @client, @running)]}>
+              {badge_text(@test_result.status, @client, @running)}
+            </div>
+          </div>
+        </div>
+
+        <!-- Test Status -->
+        <%= case @test_result.status do %>
+          <% :running -> %>
+            <div class="flex items-center space-x-2 text-primary">
+              <span class="loading loading-spinner loading-xs"></span>
+              <span class="text-sm font-medium">Executing...</span>
+            </div>
+          <% :success -> %>
+            <div class="space-y-2">
+              <div class="flex items-center space-x-2 text-success">
+                <.icon name="hero-check-circle" class="size-4" />
+                <span class="text-sm font-medium">Test passed</span>
+              </div>
+
+              <%= if @test_result.result do %>
+                <details class="collapse bg-base-200">
+                  <summary class="collapse-title text-xs cursor-pointer">
+                    View response data
+                  </summary>
+                  <div class="collapse-content">
+                    <div class="max-h-32 overflow-auto">
+                      <pre class="text-xs whitespace-pre-wrap break-all"><%= truncate_output(@test_result.result) %></pre>
+                    </div>
+                    <button
+                      phx-click="show_full_output"
+                      phx-value-test_id={@test_def.id}
+                      phx-value-type="result"
+                      class="btn btn-xs btn-ghost mt-2"
+                    >
+                      View full output
+                    </button>
+                  </div>
+                </details>
+              <% end %>
+            </div>
+          <% :error -> %>
+            <div class="space-y-2">
+              <div class="flex items-center space-x-2 text-error">
+                <.icon name="hero-x-circle" class="size-4" />
+                <span class="text-sm font-medium">Test failed</span>
+              </div>
+
+              <%= if @test_result.error do %>
+                <div class="alert alert-error">
+                  <div class="flex-1 min-w-0">
+                    <div class="max-h-24 overflow-auto">
+                      <p class="text-xs font-mono whitespace-pre-wrap break-all">
+                        <%= truncate_output(@test_result.error) %>
+                      </p>
+                    </div>
+                    <button
+                      phx-click="show_full_output"
+                      phx-value-test_id={@test_def.id}
+                      phx-value-type="error"
+                      class="btn btn-xs btn-ghost mt-2"
+                    >
+                      View full output
+                    </button>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          <% :pending -> %>
+            <%= cond do %>
+              <% is_nil(@client) -> %>
+                <div class="flex items-center space-x-2 opacity-50">
+                  <.icon name="hero-exclamation-triangle" class="size-4" />
+                  <span class="text-sm">Configuration required</span>
+                </div>
+              <% @running -> %>
+                <div class="flex items-center space-x-2 text-warning">
+                  <span class="loading loading-dots loading-xs"></span>
+                  <span class="text-sm">Waiting in queue</span>
+                </div>
+              <% true -> %>
+                <div class="flex items-center space-x-2 opacity-70">
+                  <div class="w-4 h-4 border border-base-300 rounded-full"></div>
+                  <span class="text-sm">Ready to run</span>
+                </div>
+            <% end %>
+        <% end %>
+
+        <!-- Active Test Indicator -->
+        <%= if @current_test == @test_def.id do %>
+          <div class="mt-3 alert alert-info">
+            <div class="flex items-center space-x-2">
+              <div class="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+              <span class="text-xs font-medium">Currently executing</span>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+    """
+  end
+
+  defp badge_class(status, client, running) do
+    cond do
+      status == :running -> "badge-primary"
+      status == :success -> "badge-success"
+      status == :error -> "badge-error"
+      is_nil(client) -> "badge-neutral opacity-50"
+      running -> "badge-warning"
+      true -> "badge-neutral"
+    end
+  end
+
+  defp badge_text(status, client, running) do
+    cond do
+      status == :running -> "Running"
+      status == :success -> "Passed"
+      status == :error -> "Failed"
+      is_nil(client) -> "Not Ready"
+      running -> "Waiting"
+      true -> "Ready"
+    end
+  end
+
+  defp finish_test(socket, test_id, result_map) do
+    socket
+    |> update(:test_results, fn results -> Map.put(results, test_id, result_map) end)
+    |> update(:progress, fn progress -> min(progress + 10, 100) end)
+    |> then(fn s ->
+      if s.assigns.current_test == test_id, do: assign(s, current_test: nil), else: s
+    end)
+  end
+
+  defp apply_config(socket, base_url, bearer_token) do
+    {normalized_base_url, client} = create_scim_client(base_url, bearer_token)
+
+    socket
+    |> assign(
+      base_url: normalized_base_url,
+      bearer_token: bearer_token,
+      client: client
+    )
+    |> maybe_fetch_capabilities(client)
   end
 
   defp maybe_fetch_capabilities(socket, nil) do
