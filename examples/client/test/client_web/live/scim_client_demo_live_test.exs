@@ -33,28 +33,27 @@ defmodule ClientWeb.ScimClientDemoLiveTest do
   end
 
   describe "filter row management" do
-    test "initial state has one filter row", %{conn: conn} do
+    test "initial state has no filter rows", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/search")
       connect_client(view)
 
-      assert has_element?(view, "#filter-row-form-1")
-      refute has_element?(view, "#filter-row-form-2")
+      refute has_element?(view, "#filter-row-form-1")
     end
 
-    test "add_filter_row adds a second row", %{conn: conn} do
+    test "add_filter_row adds a row", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/search")
       connect_client(view)
 
       view |> element("button", "Add Filter") |> render_click()
 
       assert has_element?(view, "#filter-row-form-1")
-      assert has_element?(view, "#filter-row-form-2")
     end
 
     test "remove_filter_row removes a specific row leaving others", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/search")
       connect_client(view)
 
+      view |> element("button", "Add Filter") |> render_click()
       view |> element("button", "Add Filter") |> render_click()
       assert has_element?(view, "#filter-row-form-1")
       assert has_element?(view, "#filter-row-form-2")
@@ -69,6 +68,9 @@ defmodule ClientWeb.ScimClientDemoLiveTest do
       {:ok, view, _html} = live(conn, ~p"/search")
       connect_client(view)
 
+      view |> element("button", "Add Filter") |> render_click()
+      assert has_element?(view, "#filter-row-form-1")
+
       view |> element("#filter-row-form-1 button[phx-click=remove_filter_row]") |> render_click()
 
       refute has_element?(view, "#filter-row-form-1")
@@ -78,6 +80,9 @@ defmodule ClientWeb.ScimClientDemoLiveTest do
     test "can add a row after removing all rows", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/search")
       connect_client(view)
+
+      view |> element("button", "Add Filter") |> render_click()
+      assert has_element?(view, "#filter-row-form-1")
 
       view |> element("#filter-row-form-1 button[phx-click=remove_filter_row]") |> render_click()
       refute has_element?(view, "#filter-row-form-1")
@@ -92,6 +97,8 @@ defmodule ClientWeb.ScimClientDemoLiveTest do
       {:ok, view, _html} = live(conn, ~p"/search")
       connect_client(view)
 
+      view |> element("button", "Add Filter") |> render_click()
+
       view
       |> form("#filter-row-form-1", %{"attribute" => "displayName", "row-id" => "1"})
       |> render_change()
@@ -103,6 +110,8 @@ defmodule ClientWeb.ScimClientDemoLiveTest do
       {:ok, view, _html} = live(conn, ~p"/search")
       connect_client(view)
 
+      view |> element("button", "Add Filter") |> render_click()
+
       view
       |> form("#filter-row-form-1", %{"operator" => "co", "row-id" => "1"})
       |> render_change()
@@ -113,6 +122,8 @@ defmodule ClientWeb.ScimClientDemoLiveTest do
     test "setting a value causes filter param to appear in preview", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/search")
       connect_client(view)
+
+      view |> element("button", "Add Filter") |> render_click()
 
       view
       |> form("#filter-row-form-1", %{"value" => "john", "row-id" => "1"})
@@ -133,6 +144,8 @@ defmodule ClientWeb.ScimClientDemoLiveTest do
     test "pr operator is included without value", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/search")
       connect_client(view)
+
+      view |> element("button", "Add Filter") |> render_click()
 
       view
       |> form("#filter-row-form-1", %{"operator" => "pr", "row-id" => "1"})
@@ -160,6 +173,7 @@ defmodule ClientWeb.ScimClientDemoLiveTest do
       connect_client(view)
 
       view |> element("select[name=resource_type]") |> render_change(%{"resource_type" => "Groups"})
+      view |> element("button", "Add Filter") |> render_click()
 
       html = render(view)
       assert html =~ "displayName"
@@ -183,7 +197,9 @@ defmodule ClientWeb.ScimClientDemoLiveTest do
       {:ok, view, _html} = live(conn, ~p"/search")
       connect_client(view)
 
-      # Fill first row
+      # Add and fill first row
+      view |> element("button", "Add Filter") |> render_click()
+
       view
       |> form("#filter-row-form-1", %{"value" => "john", "row-id" => "1"})
       |> render_change()
@@ -208,6 +224,8 @@ defmodule ClientWeb.ScimClientDemoLiveTest do
     test "default and combinator works with multiple rows", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/search")
       connect_client(view)
+
+      view |> element("button", "Add Filter") |> render_click()
 
       view
       |> form("#filter-row-form-1", %{"value" => "john", "row-id" => "1"})
@@ -269,6 +287,8 @@ defmodule ClientWeb.ScimClientDemoLiveTest do
     test "with filled filter shows filter param", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/search")
       connect_client(view)
+
+      view |> element("button", "Add Filter") |> render_click()
 
       view
       |> form("#filter-row-form-1", %{"value" => "test", "row-id" => "1"})

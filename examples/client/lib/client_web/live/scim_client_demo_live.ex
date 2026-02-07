@@ -71,9 +71,9 @@ defmodule ClientWeb.ScimClientDemoLive do
         capabilities_applied: false,
         modal_output: nil,
         search_resource_type: "Users",
-        search_filter_rows: [%{id: 1, attribute: "userName", operator: "eq", value: ""}],
+        search_filter_rows: [],
         search_combinator: "and",
-        search_next_row_id: 2,
+        search_next_row_id: 1,
         search_results: nil,
         search_error: nil,
         search_loading: false,
@@ -236,8 +236,8 @@ defmodule ClientWeb.ScimClientDemoLive do
     {:noreply,
      assign(socket,
        search_resource_type: type,
-       search_filter_rows: [%{id: 1, attribute: default_attr(type), operator: "eq", value: ""}],
-       search_next_row_id: 2,
+       search_filter_rows: [],
+       search_next_row_id: 1,
        search_results: nil,
        search_error: nil
      )}
