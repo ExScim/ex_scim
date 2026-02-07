@@ -66,7 +66,7 @@ defmodule Client.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
-      {:ex_scim_client, path: "../../apps/ex_scim_client"},
+      {:ex_scim_client, path: "../../apps/ex_scim_client"}
     ]
   end
 
