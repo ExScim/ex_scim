@@ -23,15 +23,15 @@ defmodule ExScimEcto.QueryFilter do
   end
 
   defp build_dynamic({:co, field, value}) do
-    dynamic([u], ilike(field(u, ^to_atom(field)), ^"%#{value}%"))
+    dynamic([u], like(field(u, ^to_atom(field)), ^"%#{value}%"))
   end
 
   defp build_dynamic({:sw, field, value}) do
-    dynamic([u], ilike(field(u, ^to_atom(field)), ^"#{value}%"))
+    dynamic([u], like(field(u, ^to_atom(field)), ^"#{value}%"))
   end
 
   defp build_dynamic({:ew, field, value}) do
-    dynamic([u], ilike(field(u, ^to_atom(field)), ^"%#{value}"))
+    dynamic([u], like(field(u, ^to_atom(field)), ^"%#{value}"))
   end
 
   defp build_dynamic({:pr, field}) do
@@ -63,7 +63,8 @@ defmodule ExScimEcto.QueryFilter do
   end
 
   defp to_atom(term) do
-    String.to_atom(term)
-    # String.to_existing_atom(term)
+    term
+    |> Macro.underscore()
+    |> String.to_atom()
   end
 end
