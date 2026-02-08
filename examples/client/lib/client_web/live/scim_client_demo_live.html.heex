@@ -485,21 +485,6 @@
                       <% end %>
                     </button>
                   </div>
-                  <!-- Page Size Selector -->
-                  <div class="flex items-center gap-2 mb-4">
-                    <span class="text-sm opacity-70">Results per page:</span>
-                    <select
-                      phx-change="update_search_page_size"
-                      name="page_size"
-                      class="select select-bordered select-xs"
-                    >
-                      <%= for size <- [10, 25, 50, 100] do %>
-                        <option value={size} selected={@search_page_size == size}>
-                          {size}
-                        </option>
-                      <% end %>
-                    </select>
-                  </div>
                   <!-- Request Preview -->
                   <% request_preview = build_request_preview(assigns) %>
                   <div class="bg-base-200 rounded-lg p-3">

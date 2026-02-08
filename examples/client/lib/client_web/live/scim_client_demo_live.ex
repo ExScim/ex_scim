@@ -289,10 +289,6 @@ defmodule ClientWeb.ScimClientDemoLive do
     {:noreply, assign(socket, search_combinator: combinator)}
   end
 
-  def handle_event("update_search_page_size", %{"page_size" => size_str}, socket) do
-    {:noreply, assign(socket, search_page_size: String.to_integer(size_str))}
-  end
-
   def handle_event("search_page_size", %{"page_size" => size_str}, socket) do
     socket = assign(socket, search_page_size: String.to_integer(size_str), search_start_index: 1)
     send(self(), :run_search)
