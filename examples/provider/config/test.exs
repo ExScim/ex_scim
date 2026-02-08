@@ -32,7 +32,3 @@ config :phoenix, :plug_init_mode, :runtime
 # Enable helpful, but potentially expensive runtime checks
 config :phoenix_live_view,
   enable_expensive_runtime_checks: true
-
-# Configure ExScim to use ETS storage adapter for tests to avoid database conflicts
-config :ex_scim,
-  storage_strategy: ExScim.Storage.EtsStorage
