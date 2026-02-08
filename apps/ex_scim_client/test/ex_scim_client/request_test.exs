@@ -217,7 +217,7 @@ defmodule ExScimClient.RequestTest do
       filter = Filter.new() |> Filter.equals("userName", "foo")
       updated_req = Request.filter(req, filter)
 
-      assert updated_req[:scim_params][:filter] == "userName eq foo"
+      assert updated_req[:scim_params][:filter] == "userName eq \"foo\""
     end
 
     test "adds filter string to scim_params", %{request: req} do
@@ -448,7 +448,7 @@ defmodule ExScimClient.RequestTest do
 
       assert request[:method] == :get
       assert request[:url] == "https://api.example.com/users"
-      assert request[:scim_params][:filter] == "userName eq john"
+      assert request[:scim_params][:filter] == "userName eq \"john\""
       assert request[:scim_params][:sort_by] == "userName"
       assert request[:scim_params][:sort_order] == :desc
       assert request[:scim_params][:start_index] == 1
@@ -470,7 +470,9 @@ defmodule ExScimClient.RequestTest do
         []
         |> Request.filter(complex_filter)
 
-      expected_filter = "(active eq true) and ((userName co admin) or (email ew @company.com))"
+      expected_filter =
+        "(active eq \"true\") and ((userName co \"admin\") or (email ew \"@company.com\"))"
+
       assert request[:scim_params][:filter] == expected_filter
     end
 
