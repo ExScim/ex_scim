@@ -17,14 +17,13 @@ defmodule ExScim.Operations.Users do
   end
 
   def list_users_scim(caller, opts \\ %{}) do
-    with {:ok, filter_ast} <- parse_filter(Map.get(opts, "filter")) do
-      sort_opts = build_sort_opts(Map.get(opts, :sort_by), Map.get(opts, :sort_order))
-      pagination_opts = build_pagination_opts(Map.get(opts, :start_index), Map.get(opts, :count))
+    filter_ast = Map.get(opts, :filter)
+    sort_opts = build_sort_opts(Map.get(opts, :sort_by), Map.get(opts, :sort_order))
+    pagination_opts = build_pagination_opts(Map.get(opts, :start_index), Map.get(opts, :count))
 
-      with {:ok, domain_users, total} <-
-             Storage.list_users(filter_ast, sort_opts, pagination_opts) do
-        map_all_users(domain_users, caller, total)
-      end
+    with {:ok, domain_users, total} <-
+           Storage.list_users(filter_ast, sort_opts, pagination_opts) do
+      map_all_users(domain_users, caller, total)
     end
   end
 
@@ -86,20 +85,6 @@ defmodule ExScim.Operations.Users do
       error -> error
     end
   end
-
-  defp parse_filter(nil), do: {:ok, nil}
-
-  defp parse_filter(filter_string) when is_binary(filter_string) do
-    case ExScim.Parser.Filter.filter(filter_string) do
-      {:ok, [ast], "", _, _, _} ->
-        {:ok, ast}
-
-      {:error, reason, _rest, _context, line, column} ->
-        {:error, "Invalid filter syntax at line #{line}, column #{column}: #{reason}"}
-    end
-  end
-
-  defp parse_filter(_), do: {:error, "Filter must be a string"}
 
   defp build_sort_opts(nil, _), do: []
 

@@ -248,13 +248,16 @@ defmodule ExScimPhoenix.Controller.UserController do
       nil ->
         {:ok, nil}
 
+      "" ->
+        {:ok, nil}
+
       filter when is_binary(filter) ->
         case ExScim.Parser.Filter.filter(filter) do
           {:ok, [ast], "", _, _, _} ->
             {:ok, ast}
 
-          {:error, reason, _rest, _context, line, column} ->
-            {:error, "Invalid filter syntax at line #{line}, column #{column}: #{reason}"}
+          {:error, reason, _rest, _context, _line, _column} ->
+            {:error, "Invalid filter syntax: #{reason}"}
         end
 
       _ ->

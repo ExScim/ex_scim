@@ -113,7 +113,7 @@ defmodule ExScimClient.FilterTest do
         |> Filter.equals("userName", "foo")
         |> Filter.build()
 
-      assert result == "userName eq foo"
+      assert result == ~S|userName eq "foo"|
     end
 
     test "renders not equal comparison" do
@@ -122,7 +122,7 @@ defmodule ExScimClient.FilterTest do
         |> Filter.not_equal("userName", "foo")
         |> Filter.build()
 
-      assert result == "userName ne foo"
+      assert result == ~S|userName ne "foo"|
     end
 
     test "renders contains comparison" do
@@ -131,7 +131,7 @@ defmodule ExScimClient.FilterTest do
         |> Filter.contains("userName", "foo")
         |> Filter.build()
 
-      assert result == "userName co foo"
+      assert result == ~S|userName co "foo"|
     end
 
     test "renders starts with comparison" do
@@ -140,7 +140,7 @@ defmodule ExScimClient.FilterTest do
         |> Filter.starts_with("userName", "foo")
         |> Filter.build()
 
-      assert result == "userName sw foo"
+      assert result == ~S|userName sw "foo"|
     end
 
     test "renders ends with comparison" do
@@ -149,7 +149,7 @@ defmodule ExScimClient.FilterTest do
         |> Filter.ends_with("userName", "foo")
         |> Filter.build()
 
-      assert result == "userName ew foo"
+      assert result == ~S|userName ew "foo"|
     end
 
     test "renders greater than comparison" do
@@ -158,7 +158,7 @@ defmodule ExScimClient.FilterTest do
         |> Filter.greater_than("age", "25")
         |> Filter.build()
 
-      assert result == "age gt 25"
+      assert result == ~S|age gt "25"|
     end
 
     test "renders greater or equal comparison" do
@@ -167,7 +167,7 @@ defmodule ExScimClient.FilterTest do
         |> Filter.greater_or_equal("age", "25")
         |> Filter.build()
 
-      assert result == "age ge 25"
+      assert result == ~S|age ge "25"|
     end
 
     test "renders less than comparison" do
@@ -176,7 +176,7 @@ defmodule ExScimClient.FilterTest do
         |> Filter.less_than("age", "25")
         |> Filter.build()
 
-      assert result == "age lt 25"
+      assert result == ~S|age lt "25"|
     end
 
     test "renders less or equal comparison" do
@@ -185,7 +185,7 @@ defmodule ExScimClient.FilterTest do
         |> Filter.less_or_equal("age", "25")
         |> Filter.build()
 
-      assert result == "age le 25"
+      assert result == ~S|age le "25"|
     end
 
     test "renders present comparison" do
@@ -204,7 +204,7 @@ defmodule ExScimClient.FilterTest do
         |> Filter.and1(Filter.new() |> Filter.equals("displayName", "Foobar"))
         |> Filter.build()
 
-      assert result == "(userName eq foo) and (displayName eq Foobar)"
+      assert result == ~S|(userName eq "foo") and (displayName eq "Foobar")|
     end
 
     test "renders or operation" do
@@ -214,7 +214,7 @@ defmodule ExScimClient.FilterTest do
         |> Filter.or1(Filter.new() |> Filter.equals("displayName", "Foobar"))
         |> Filter.build()
 
-      assert result == "(userName eq foo) or (displayName eq Foobar)"
+      assert result == ~S|(userName eq "foo") or (displayName eq "Foobar")|
     end
 
     test "renders not operation" do
@@ -224,7 +224,7 @@ defmodule ExScimClient.FilterTest do
         |> Filter.not1(Filter.new() |> Filter.equals("displayName", "Foobar"))
         |> Filter.build()
 
-      assert result == "(userName eq foo) not (displayName eq Foobar)"
+      assert result == ~S|(userName eq "foo") not (displayName eq "Foobar")|
     end
 
     test "renders complex nested operations" do
@@ -238,7 +238,7 @@ defmodule ExScimClient.FilterTest do
         )
         |> Filter.build()
 
-      assert result == "(userName eq foo) and ((displayName co bar) or (age gt 18))"
+      assert result == ~S|(userName eq "foo") and ((displayName co "bar") or (age gt "18"))|
     end
 
     test "renders multiple nested and/or operations" do
@@ -254,7 +254,7 @@ defmodule ExScimClient.FilterTest do
         |> Filter.build()
 
       assert result ==
-               "((active eq true) and ((userName sw admin) or (email ew @company.com))) and (lastLogin pr)"
+               ~S|((active eq "true") and ((userName sw "admin") or (email ew "@company.com"))) and (lastLogin pr)|
     end
   end
 end
