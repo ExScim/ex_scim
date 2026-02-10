@@ -168,6 +168,63 @@ defmodule ExScim.Config do
   end
 
   @doc """
+  Returns the configured resource types supported by this SCIM service provider.
+
+  Each resource type is a map with the following keys:
+  - `:id` - unique identifier (e.g., `"User"`)
+  - `:name` - display name
+  - `:endpoint` - the URL path suffix (e.g., `"/Users"`)
+  - `:description` - human-readable description
+  - `:schema` - the core schema URI for this resource type
+  - `:schema_extensions` - list of extension maps, each with `:schema` (URI) and `:required` (boolean)
+
+  ## Configuration
+
+      config :ex_scim, :resource_types, [
+        %{
+          id: "User",
+          name: "User",
+          endpoint: "/Users",
+          description: "User Account",
+          schema: "urn:ietf:params:scim:schemas:core:2.0:User",
+          schema_extensions: [
+            %{schema: "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User", required: false}
+          ]
+        }
+      ]
+
+  ## Default
+
+  When not configured, defaults to User (with Enterprise extension) and Group.
+  """
+  @spec resource_types() :: [map()]
+  def resource_types do
+    Application.get_env(:ex_scim, :resource_types, [
+      %{
+        id: "User",
+        name: "User",
+        endpoint: "/Users",
+        description: "User Account",
+        schema: "urn:ietf:params:scim:schemas:core:2.0:User",
+        schema_extensions: [
+          %{
+            schema: "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User",
+            required: false
+          }
+        ]
+      },
+      %{
+        id: "Group",
+        name: "Group",
+        endpoint: "/Groups",
+        description: "Group Account",
+        schema: "urn:ietf:params:scim:schemas:core:2.0:Group",
+        schema_extensions: []
+      }
+    ])
+  end
+
+  @doc """
   Returns the list of schema modules to use for SCIM schema definitions.
 
   Each module must implement the Schema Builder DSL and provide `schema_id/0`

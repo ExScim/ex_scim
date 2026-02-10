@@ -178,9 +178,10 @@ defmodule ExScimPhoenix.Controller.MeController do
   end
 
   def delete(conn, _params) do
-    user_id = conn.assigns[:scim_principal].id
+    caller = conn.assigns[:scim_principal]
+    user_id = caller.id
 
-    case Users.delete_user(user_id) do
+    case Users.delete_user(user_id, caller) do
       :ok ->
         send_resp(conn, :no_content, "")
 

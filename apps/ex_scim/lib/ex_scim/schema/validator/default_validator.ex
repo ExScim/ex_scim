@@ -61,7 +61,7 @@ defmodule ExScim.Schema.Validator.DefaultValidator do
   end
 
   defp validate_scim_schema_partial(scim_data) do
-    with {:ok, schema_uri} <- get_schema_uri_from_defaults(),
+    with {:ok, schema_uri} <- get_schema_uri_for_partial(scim_data),
          {:ok, schema} <- Repository.get_schema(schema_uri) do
       errors = []
 
@@ -79,8 +79,19 @@ defmodule ExScim.Schema.Validator.DefaultValidator do
     end
   end
 
-  defp get_schema_uri_from_defaults do
-    {:ok, "urn:ietf:params:scim:schemas:core:2.0:User"}
+  # For partial validation (PATCH), try to determine the schema URI from the data.
+  # Falls back to the first configured resource type's schema if no schemas key is present.
+  defp get_schema_uri_for_partial(scim_data) do
+    case get_schema_uri(scim_data) do
+      {:ok, _} = result ->
+        result
+
+      {:error, _} ->
+        case ExScim.Config.resource_types() do
+          [first | _] -> {:ok, first.schema}
+          [] -> {:error, [schemas: "no resource types configured"]}
+        end
+    end
   end
 
   defp validate_required_attributes(errors, scim_data, schema) do

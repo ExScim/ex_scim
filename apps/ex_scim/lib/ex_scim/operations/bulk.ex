@@ -182,7 +182,7 @@ defmodule ExScim.Operations.Bulk do
       "POST" -> handle_post_operation(operation, caller, base_url)
       "PUT" -> handle_put_operation(operation, caller, base_url)
       "PATCH" -> handle_patch_operation(operation, caller, base_url)
-      "DELETE" -> handle_delete_operation(operation, base_url)
+      "DELETE" -> handle_delete_operation(operation, caller, base_url)
     end
   rescue
     error ->
@@ -398,12 +398,12 @@ defmodule ExScim.Operations.Bulk do
     end
   end
 
-  defp handle_delete_operation(operation, _base_url) do
+  defp handle_delete_operation(operation, caller, _base_url) do
     {resource_type, resource_id} = parse_path(operation.path)
 
     case resource_type do
       :users ->
-        case Users.delete_user(resource_id) do
+        case Users.delete_user(resource_id, caller) do
           :ok ->
             %{
               "method" => operation.method,
@@ -429,7 +429,7 @@ defmodule ExScim.Operations.Bulk do
         end
 
       :groups ->
-        case Groups.delete_group(resource_id) do
+        case Groups.delete_group(resource_id, caller) do
           :ok ->
             %{
               "method" => operation.method,
