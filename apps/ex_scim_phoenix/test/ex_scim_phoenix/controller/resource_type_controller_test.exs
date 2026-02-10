@@ -154,7 +154,6 @@ defmodule ExScimPhoenix.Controller.ResourceTypeControllerTest do
 
   describe "configuration integration" do
     test "uses base_url from ExScim.Config in meta.location" do
-      # Mock the config (this would typically be done with a mocking library)
       original_base_url = Application.get_env(:ex_scim, :base_url, "http://localhost:4000")
 
       try do
@@ -166,7 +165,6 @@ defmodule ExScimPhoenix.Controller.ResourceTypeControllerTest do
         response = decode_response(conn)
         assert response["meta"]["location"] == "https://example.com/scim/v2/ResourceTypes/User"
       after
-        # Restore original config
         if original_base_url do
           Application.put_env(:ex_scim, :base_url, original_base_url)
         else
@@ -176,42 +174,119 @@ defmodule ExScimPhoenix.Controller.ResourceTypeControllerTest do
     end
   end
 
-  describe "Schema Repository integration" do
-    test "uses Schema.Repository to determine available schemas" do
-      # Verify that the controller gets schemas from the repository
-      conn = conn(:get, "/ResourceTypes")
-      conn = ResourceTypeController.show(conn, %{"id" => "User"})
+  describe "resource_types config" do
+    test "empty resource_types config returns empty ListResponse" do
+      original = Application.get_env(:ex_scim, :resource_types)
 
-      assert conn.status == 200
-      response = decode_response(conn)
-      
-      # The User schema should be referenced
-      assert response["schema"] == "urn:ietf:params:scim:schemas:core:2.0:User"
-      
-      # Schema extensions should be included if available in repository
-      enterprise_extension = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
-      if ExScim.Schema.Repository.has_schema?(enterprise_extension) do
-        assert is_list(response["schemaExtensions"])
-        extension = Enum.find(response["schemaExtensions"], fn ext -> 
-          ext["schema"] == enterprise_extension
-        end)
-        refute is_nil(extension)
-        assert extension["required"] == false
+      try do
+        Application.put_env(:ex_scim, :resource_types, [])
+
+        conn = conn(:get, "/ResourceTypes")
+        conn = ResourceTypeController.index(conn, %{})
+
+        response = decode_response(conn)
+        assert response["totalResults"] == 0
+        assert response["Resources"] == []
+      after
+        restore_resource_types(original)
       end
     end
 
-    test "only includes resource types for schemas that exist in repository" do
-      conn = conn(:get, "/ResourceTypes")
-      conn = ResourceTypeController.index(conn, %{})
+    test "custom resource type appears in response" do
+      original = Application.get_env(:ex_scim, :resource_types)
 
-      response = decode_response(conn)
-      resource_types = response["Resources"]
-      
-      # Each resource type should correspond to an existing schema
-      Enum.each(resource_types, fn rt ->
-        schema_uri = rt["schema"]
-        assert ExScim.Schema.Repository.has_schema?(schema_uri)
-      end)
+      try do
+        Application.put_env(:ex_scim, :resource_types, [
+          %{
+            id: "Device",
+            name: "Device",
+            endpoint: "/Devices",
+            description: "Device Resource",
+            schema: "urn:example:schemas:2.0:Device",
+            schema_extensions: []
+          }
+        ])
+
+        conn = conn(:get, "/ResourceTypes")
+        conn = ResourceTypeController.index(conn, %{})
+
+        response = decode_response(conn)
+        assert response["totalResults"] == 1
+
+        device_rt = List.first(response["Resources"])
+        assert device_rt["id"] == "Device"
+        assert device_rt["name"] == "Device"
+        assert device_rt["endpoint"] == "/Devices"
+        assert device_rt["description"] == "Device Resource"
+        assert device_rt["schema"] == "urn:example:schemas:2.0:Device"
+        refute Map.has_key?(device_rt, "schemaExtensions")
+      after
+        restore_resource_types(original)
+      end
+    end
+
+    test "custom resource type with extensions includes schemaExtensions" do
+      original = Application.get_env(:ex_scim, :resource_types)
+
+      try do
+        Application.put_env(:ex_scim, :resource_types, [
+          %{
+            id: "Device",
+            name: "Device",
+            endpoint: "/Devices",
+            description: "Device Resource",
+            schema: "urn:example:schemas:2.0:Device",
+            schema_extensions: [
+              %{schema: "urn:example:schemas:extension:2.0:Device", required: true}
+            ]
+          }
+        ])
+
+        conn = conn(:get, "/ResourceTypes/Device")
+        conn = ResourceTypeController.show(conn, %{"id" => "Device"})
+
+        assert conn.status == 200
+        response = decode_response(conn)
+        assert length(response["schemaExtensions"]) == 1
+
+        ext = List.first(response["schemaExtensions"])
+        assert ext["schema"] == "urn:example:schemas:extension:2.0:Device"
+        assert ext["required"] == true
+      after
+        restore_resource_types(original)
+      end
+    end
+
+    test "removing Group from config excludes it from response" do
+      original = Application.get_env(:ex_scim, :resource_types)
+
+      try do
+        Application.put_env(:ex_scim, :resource_types, [
+          %{
+            id: "User",
+            name: "User",
+            endpoint: "/Users",
+            description: "User Account",
+            schema: "urn:ietf:params:scim:schemas:core:2.0:User",
+            schema_extensions: []
+          }
+        ])
+
+        conn = conn(:get, "/ResourceTypes")
+        conn = ResourceTypeController.index(conn, %{})
+
+        response = decode_response(conn)
+        assert response["totalResults"] == 1
+
+        ids = Enum.map(response["Resources"], fn rt -> rt["id"] end)
+        assert "User" in ids
+        refute "Group" in ids
+      after
+        restore_resource_types(original)
+      end
     end
   end
+
+  defp restore_resource_types(nil), do: Application.delete_env(:ex_scim, :resource_types)
+  defp restore_resource_types(value), do: Application.put_env(:ex_scim, :resource_types, value)
 end

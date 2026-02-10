@@ -1,11 +1,12 @@
 defmodule ExScimPhoenix.Controller.ResourceTypeController do
   use Phoenix.Controller, formats: [:json]
 
-  alias ExScim.Schema.Repository
-
   @moduledoc """
   SCIM v2.0 ResourceType endpoint implementation (RFC 7644 Section 4)
   Provides metadata about the resource types supported by the service provider.
+
+  Resource types are read from `ExScim.Config.resource_types/0`, which defaults
+  to User (with Enterprise extension) and Group when not explicitly configured.
   """
 
   def index(conn, _params) do
@@ -47,66 +48,32 @@ defmodule ExScimPhoenix.Controller.ResourceTypeController do
     end
   end
 
-  # Build resource types dynamically using Schema Repository
   defp build_resource_types do
     base_url = ExScim.Config.base_url()
-    schemas = Repository.list_schemas()
-    
-    # Define resource type mappings based on available schemas
-    resource_type_mappings = %{
-      "urn:ietf:params:scim:schemas:core:2.0:User" => %{
-        "id" => "User",
-        "name" => "User", 
-        "endpoint" => "/Users",
-        "description" => "User Account"
-      },
-      "urn:ietf:params:scim:schemas:core:2.0:Group" => %{
-        "id" => "Group",
-        "name" => "Group",
-        "endpoint" => "/Groups", 
-        "description" => "Group Account"
-      }
-    }
 
-    # Build resource types for core schemas only (not extensions)
-    core_schemas = Enum.filter(schemas, fn schema ->
-      schema_id = schema["id"]
-      Map.has_key?(resource_type_mappings, schema_id) and 
-      not String.contains?(schema_id, "extension")
-    end)
-
-    Enum.map(core_schemas, fn schema ->
-      schema_id = schema["id"] 
-      mapping = resource_type_mappings[schema_id]
-      
+    ExScim.Config.resource_types()
+    |> Enum.map(fn rt ->
       resource_type = %{
         "schemas" => ["urn:ietf:params:scim:schemas:core:2.0:ResourceType"],
-        "id" => mapping["id"],
-        "name" => mapping["name"],
-        "endpoint" => mapping["endpoint"], 
-        "description" => mapping["description"],
-        "schema" => schema_id,
+        "id" => rt.id,
+        "name" => rt.name,
+        "endpoint" => rt.endpoint,
+        "description" => rt.description,
+        "schema" => rt.schema,
         "meta" => %{
-          "location" => "#{base_url}/scim/v2/ResourceTypes/#{mapping["id"]}",
+          "location" => "#{base_url}/scim/v2/ResourceTypes/#{rt.id}",
           "resourceType" => "ResourceType"
         }
       }
 
-      # Add schema extensions for User resource type
-      if mapping["id"] == "User" do
-        enterprise_extension = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
-        if Repository.has_schema?(enterprise_extension) do
-          Map.put(resource_type, "schemaExtensions", [
-            %{
-              "schema" => enterprise_extension,
-              "required" => false
-            }
-          ])
-        else
-          resource_type
-        end
-      else
-        resource_type
+      case rt.schema_extensions do
+        [] -> resource_type
+        extensions ->
+          Map.put(resource_type, "schemaExtensions",
+            Enum.map(extensions, fn ext ->
+              %{"schema" => ext.schema, "required" => ext.required}
+            end)
+          )
       end
     end)
   end

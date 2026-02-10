@@ -90,6 +90,29 @@ config :ex_scim,
   sort_supported: true,
   etag_supported: true,
   documentation_uri: "http://localhost:4000/scim/docs",
+  resource_types: [
+    %{
+      id: "User",
+      name: "User",
+      endpoint: "/Users",
+      description: "User Account",
+      schema: "urn:ietf:params:scim:schemas:core:2.0:User",
+      schema_extensions: [
+        %{
+          schema: "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User",
+          required: false
+        }
+      ]
+    },
+    %{
+      id: "Group",
+      name: "Group",
+      endpoint: "/Groups",
+      description: "Group Account",
+      schema: "urn:ietf:params:scim:schemas:core:2.0:Group",
+      schema_extensions: []
+    }
+  ],
   authentication_schemes: [
     %{
       "type" => "oauthbearertoken",
