@@ -175,7 +175,9 @@ defmodule ExScimPhoenix.Controller.UserController do
   end
 
   def delete(conn, %{"id" => id}) do
-    case Users.delete_user(id) do
+    caller = conn.assigns.scim_principal
+
+    case Users.delete_user(id, caller) do
       :ok ->
         send_resp(conn, :no_content, "")
 

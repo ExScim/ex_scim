@@ -1,6 +1,7 @@
 defmodule ExScim.Operations.Users do
   @moduledoc "User management context."
 
+  alias ExScim.Lifecycle
   alias ExScim.Resources.IdGenerator
   alias ExScim.Resources.Metadata
   alias ExScim.Resources.Resource
@@ -10,9 +11,15 @@ defmodule ExScim.Operations.Users do
   alias ExScim.Users.Patcher
 
   def get_user(id, caller) do
-    with {:ok, domain_user} <- Storage.get_user(id),
+    with :ok <- Lifecycle.before_get(:user, id, caller),
+         {:ok, domain_user} <- Storage.get_user(id),
          {:ok, scim_user} <- Mapper.to_scim(domain_user, caller) do
+      Lifecycle.after_get(:user, scim_user, caller)
       {:ok, scim_user}
+    else
+      {:error, _} = error ->
+        Lifecycle.on_error(:get, :user, error, caller)
+        error
     end
   end
 
@@ -32,9 +39,15 @@ defmodule ExScim.Operations.Users do
          {:ok, mapped_data} <- Mapper.from_scim(schema_validated_data, caller),
          data_with_id <- maybe_set_id(mapped_data),
          data_with_metadata <- Metadata.update_metadata(data_with_id, "User"),
-         {:ok, stored_user} <- Storage.create_user(data_with_metadata),
+         {:ok, hooked_data} <- Lifecycle.before_create(:user, data_with_metadata, caller),
+         {:ok, stored_user} <- Storage.create_user(hooked_data),
          {:ok, scim_user} <- Mapper.to_scim(stored_user, caller) do
+      Lifecycle.after_create(:user, scim_user, caller)
       {:ok, scim_user}
+    else
+      {:error, _} = error ->
+        Lifecycle.on_error(:create, :user, error, caller)
+        error
     end
   end
 
@@ -44,9 +57,15 @@ defmodule ExScim.Operations.Users do
          {:ok, user_struct} <- Mapper.from_scim(schema_validated_data, caller),
          user_with_id <- Resource.set_id(user_struct, user_id),
          user_with_meta <- Metadata.update_metadata(user_with_id, "User"),
-         {:ok, stored_user} <- Storage.replace_user(user_id, user_with_meta),
+         {:ok, hooked_data} <- Lifecycle.before_replace(:user, user_id, user_with_meta, caller),
+         {:ok, stored_user} <- Storage.replace_user(user_id, hooked_data),
          {:ok, scim_user} <- Mapper.to_scim(stored_user, caller) do
+      Lifecycle.after_replace(:user, scim_user, caller)
       {:ok, scim_user}
+    else
+      {:error, _} = error ->
+        Lifecycle.on_error(:replace, :user, error, caller)
+        error
     end
   end
 
@@ -55,14 +74,28 @@ defmodule ExScim.Operations.Users do
          {:ok, schema_validated_data} <- Validator.validate_scim_partial(scim_data, :patch),
          {:ok, patched_user} <- Patcher.patch(domain_user, schema_validated_data),
          user_with_meta <- Metadata.update_metadata(patched_user, "User"),
-         {:ok, stored_user} <- Storage.update_user(user_id, user_with_meta),
+         {:ok, hooked_data} <- Lifecycle.before_patch(:user, user_id, user_with_meta, caller),
+         {:ok, stored_user} <- Storage.update_user(user_id, hooked_data),
          {:ok, scim_user} <- Mapper.to_scim(stored_user, caller) do
+      Lifecycle.after_patch(:user, scim_user, caller)
       {:ok, scim_user}
+    else
+      {:error, _} = error ->
+        Lifecycle.on_error(:patch, :user, error, caller)
+        error
     end
   end
 
-  def delete_user(user_id) do
-    Storage.delete_user(user_id)
+  def delete_user(user_id, caller) do
+    with :ok <- Lifecycle.before_delete(:user, user_id, caller),
+         :ok <- Storage.delete_user(user_id) do
+      Lifecycle.after_delete(:user, user_id, caller)
+      :ok
+    else
+      {:error, _} = error ->
+        Lifecycle.on_error(:delete, :user, error, caller)
+        error
+    end
   end
 
   defp maybe_set_id(user_struct) do

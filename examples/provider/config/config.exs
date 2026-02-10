@@ -68,6 +68,7 @@ config :ex_scim,
   group_resource_mapper: Provider.Scim.GroupMapper,
   scim_validator: ExScim.Schema.Validator.DefaultValidator,
   scim_schema_repository: ExScim.Schema.Repository.DefaultRepository,
+  lifecycle_adapter: Provider.Scim.Lifecycle,
   storage_strategy: ExScimEcto.StorageAdapter,
   storage_repo: Provider.Repo,
   user_model:

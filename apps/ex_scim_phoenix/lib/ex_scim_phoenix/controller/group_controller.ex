@@ -175,7 +175,9 @@ defmodule ExScimPhoenix.Controller.GroupController do
   end
 
   def delete(conn, %{"id" => id}) do
-    case Groups.delete_group(id) do
+    caller = conn.assigns.scim_principal
+
+    case Groups.delete_group(id, caller) do
       :ok ->
         send_resp(conn, :no_content, "")
 
