@@ -18,7 +18,7 @@
   ];
 
   languages.elixir.enable = true;
-  languages.elixir.package = pkgs.beam28Packages.elixir_1_19;
+  languages.elixir.package = pkgs.beam27Packages.elixir_1_19;
   languages.javascript.enable = true;
 
   env.TAILWINDCSS_PATH = "${pkgs.lib.getExe pkgs.tailwindcss_4}";
