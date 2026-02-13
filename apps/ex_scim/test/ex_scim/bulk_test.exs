@@ -2,10 +2,10 @@ defmodule ExScim.BulkTest do
   use ExUnit.Case, async: true
 
   alias ExScim.Operations.Bulk
-  alias ExScim.Auth.Principal
+  alias ExScim.Scope
 
   # Test caller for bulk operations
-  @test_caller %Principal{id: "test-bulk-caller", scopes: ["scim:write"]}
+  @test_caller %Scope{id: "test-bulk-caller", scopes: ["scim:write"]}
 
   describe "process_bulk_request/3" do
     test "validates bulk request structure" do

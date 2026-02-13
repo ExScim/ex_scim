@@ -1,9 +1,10 @@
 defmodule ExScim.LifecycleTest do
   use ExUnit.Case
+  import ExUnit.CaptureLog
 
   alias ExScim.Lifecycle
 
-  @caller %ExScim.Auth.Principal{id: "test-user", scopes: ["scim:read", "scim:write"]}
+  @caller %ExScim.Scope{id: "test-user", scopes: ["scim:read", "scim:write"]}
 
   setup do
     # Clear any lifecycle calls from process dict
@@ -218,15 +219,22 @@ defmodule ExScim.LifecycleTest do
     end
 
     test "before hook crash fails closed with {:error, :lifecycle_hook_error}" do
-      assert {:error, :lifecycle_hook_error} = Lifecycle.before_create(:user, %{}, @caller)
+      assert capture_log(fn ->
+               assert {:error, :lifecycle_hook_error} =
+                        Lifecycle.before_create(:user, %{}, @caller)
+             end) =~ "Lifecycle before hook crashed"
     end
 
     test "after hook crash fails open (returns :ok)" do
-      assert :ok = Lifecycle.after_create(:user, %{"id" => "1"}, @caller)
+      assert capture_log(fn ->
+               assert :ok = Lifecycle.after_create(:user, %{"id" => "1"}, @caller)
+             end) =~ "Lifecycle after hook crashed"
     end
 
     test "on_error crash fails open (returns :ok)" do
-      assert :ok = Lifecycle.on_error(:create, :user, {:error, :test}, @caller)
+      assert capture_log(fn ->
+               assert :ok = Lifecycle.on_error(:create, :user, {:error, :test}, @caller)
+             end) =~ "Lifecycle after hook crashed"
     end
   end
 

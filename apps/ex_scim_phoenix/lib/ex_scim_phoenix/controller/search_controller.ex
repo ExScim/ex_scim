@@ -20,10 +20,11 @@ defmodule ExScimPhoenix.Controller.SearchController do
 
   def search(conn, search_params) do
     resource_type = determine_resource_type(conn.request_path)
+    scope = conn.assigns[:scim_scope]
 
     with {:ok, validated_params} <- validate_search_request(search_params),
          {:ok, parsed_params} <- parse_search_params(validated_params),
-         {:ok, resources, total_results} <- search_by_resource_type(resource_type, parsed_params) do
+         {:ok, resources, total_results} <- search_by_resource_type(resource_type, scope, parsed_params) do
       response = %{
         "schemas" => [@scim_list_response_schema],
         "totalResults" => total_results,
@@ -43,9 +44,11 @@ defmodule ExScimPhoenix.Controller.SearchController do
   end
 
   def search_all(conn, search_params) do
+    scope = conn.assigns[:scim_scope]
+
     with {:ok, validated_params} <- validate_search_request(search_params),
          {:ok, parsed_params} <- parse_search_params(validated_params),
-         {:ok, resources, total_results} <- search_all_resources(parsed_params) do
+         {:ok, resources, total_results} <- search_all_resources(scope, parsed_params) do
       response = %{
         "schemas" => [@scim_list_response_schema],
         "totalResults" => total_results,
@@ -214,10 +217,10 @@ defmodule ExScimPhoenix.Controller.SearchController do
     end
   end
 
-  defp search_all_resources(params) do
+  defp search_all_resources(scope, params) do
     # Search across all resource types (Users, Groups, etc.)
-    with {:ok, users, user_count} <- Users.list_users_scim(params),
-         {:ok, groups, group_count} <- Groups.list_groups_scim(params) do
+    with {:ok, users, user_count} <- Users.list_users_scim(scope, params),
+         {:ok, groups, group_count} <- Groups.list_groups_scim(scope, params) do
       # Add resourceType to meta for each resource
       users_with_meta =
         Enum.map(users, fn user ->
@@ -258,15 +261,15 @@ defmodule ExScimPhoenix.Controller.SearchController do
     end
   end
 
-  defp search_by_resource_type(:users, params) do
-    Users.list_users_scim(params)
+  defp search_by_resource_type(:users, scope, params) do
+    Users.list_users_scim(scope, params)
   end
 
-  defp search_by_resource_type(:groups, params) do
-    Groups.list_groups_scim(params)
+  defp search_by_resource_type(:groups, scope, params) do
+    Groups.list_groups_scim(scope, params)
   end
 
-  defp search_by_resource_type(_unknown, _params) do
+  defp search_by_resource_type(_unknown, _scope, _params) do
     {:error, "Unknown resource type"}
   end
 

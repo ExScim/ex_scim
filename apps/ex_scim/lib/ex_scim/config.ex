@@ -64,6 +64,25 @@ defmodule ExScim.Config do
   end
 
   @doc """
+  Generates a full SCIM resource URL, using a tenant-specific base URL when available.
+
+  When a `scope` with a `tenant_id` is provided and the configured tenant resolver
+  implements the optional `tenant_scim_base_url/1` callback, that URL is used as the
+  base. Otherwise, falls back to the global `scim_base_url/0`.
+
+  ## Examples
+
+      iex> ExScim.Config.resource_url("Users", "123", nil)
+      "http://localhost:4000/scim/v2/Users/123"
+  """
+  @spec resource_url(String.t(), String.t(), ExScim.Scope.t() | nil) :: String.t()
+  def resource_url(resource_type, resource_id, scope)
+      when is_binary(resource_type) and is_binary(resource_id) do
+    base = tenant_scim_base_url(scope) || scim_base_url()
+    "#{base}/#{resource_type}/#{resource_id}"
+  end
+
+  @doc """
   Generates a SCIM resource collection URL for the given resource type.
 
   ## Examples
@@ -74,6 +93,15 @@ defmodule ExScim.Config do
   @spec collection_url(String.t()) :: String.t()
   def collection_url(resource_type) when is_binary(resource_type) do
     "#{scim_base_url()}/#{resource_type}"
+  end
+
+  @doc """
+  Generates a SCIM collection URL, using a tenant-specific base URL when available.
+  """
+  @spec collection_url(String.t(), ExScim.Scope.t() | nil) :: String.t()
+  def collection_url(resource_type, scope) when is_binary(resource_type) do
+    base = tenant_scim_base_url(scope) || scim_base_url()
+    "#{base}/#{resource_type}"
   end
 
   @doc """
@@ -252,5 +280,22 @@ defmodule ExScim.Config do
       ExScim.Schema.Definitions.EnterpriseUser,
       ExScim.Schema.Definitions.Group
     ])
+  end
+
+  defp tenant_scim_base_url(nil), do: nil
+  defp tenant_scim_base_url(%ExScim.Scope{tenant_id: nil}), do: nil
+
+  defp tenant_scim_base_url(%ExScim.Scope{tenant_id: tenant_id}) do
+    case Application.get_env(:ex_scim, :tenant_resolver) do
+      nil ->
+        nil
+
+      resolver_mod ->
+        if function_exported?(resolver_mod, :tenant_scim_base_url, 1) do
+          resolver_mod.tenant_scim_base_url(tenant_id)
+        else
+          nil
+        end
+    end
   end
 end

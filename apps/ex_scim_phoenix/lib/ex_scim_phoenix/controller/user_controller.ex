@@ -27,7 +27,7 @@ defmodule ExScimPhoenix.Controller.UserController do
   @max_count 200
 
   def index(conn, params) do
-    caller = conn.assigns.scim_principal
+    caller = conn.assigns.scim_scope
 
     with {:ok, parsed_params} <- parse_list_params(params),
          {:ok, users, total_results} <- Users.list_users_scim(caller, parsed_params) do
@@ -56,7 +56,7 @@ defmodule ExScimPhoenix.Controller.UserController do
   end
 
   def show(conn, %{"id" => id}) do
-    caller = conn.assigns.scim_principal
+    caller = conn.assigns.scim_scope
 
     case Users.get_user(id, caller) do
       {:ok, user} ->
@@ -75,7 +75,7 @@ defmodule ExScimPhoenix.Controller.UserController do
   end
 
   def create(conn, user_params) do
-    caller = conn.assigns.scim_principal
+    caller = conn.assigns.scim_scope
 
     case Users.create_user_from_scim(user_params, caller) do
       {:ok, user} ->
@@ -101,7 +101,7 @@ defmodule ExScimPhoenix.Controller.UserController do
   end
 
   def update(conn, %{"id" => id} = user_params) do
-    caller = conn.assigns.scim_principal
+    caller = conn.assigns.scim_scope
     # Remove id from params to avoid conflicts
     user_params = Map.delete(user_params, "id")
 
@@ -130,7 +130,7 @@ defmodule ExScimPhoenix.Controller.UserController do
   end
 
   def patch(conn, %{"id" => id} = patch_params) do
-    caller = conn.assigns.scim_principal
+    caller = conn.assigns.scim_scope
     # Remove id from params to avoid conflicts
     patch_params = Map.delete(patch_params, "id")
 
@@ -175,7 +175,7 @@ defmodule ExScimPhoenix.Controller.UserController do
   end
 
   def delete(conn, %{"id" => id}) do
-    caller = conn.assigns.scim_principal
+    caller = conn.assigns.scim_scope
 
     case Users.delete_user(id, caller) do
       :ok ->

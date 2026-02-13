@@ -5,7 +5,7 @@ defmodule ExScimPhoenix.Plugs.ScimAuth do
 
   import Plug.Conn
   import Phoenix.Controller
-  alias ExScim.Auth.Principal
+  alias ExScim.Scope
   alias ExScim.Auth.AuthProvider
 
   def init(opts), do: opts
@@ -31,8 +31,8 @@ defmodule ExScimPhoenix.Plugs.ScimAuth do
     end
   end
 
-  defp handle_auth_result(conn, {:ok, %Principal{} = principal}) do
-    assign(conn, :scim_principal, principal)
+  defp handle_auth_result(conn, {:ok, %Scope{} = scope}) do
+    assign(conn, :scim_scope, scope)
   end
 
   defp handle_auth_result(conn, {:error, reason}) do

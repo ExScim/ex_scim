@@ -1,7 +1,7 @@
 defmodule ExScim.Auth.AuthProvider.Adapter do
   @moduledoc "SCIM authentication provider behaviour."
 
-  alias ExScim.Auth.Principal
+  alias ExScim.Scope
 
   @type auth_error ::
           :invalid_credentials
@@ -12,8 +12,8 @@ defmodule ExScim.Auth.AuthProvider.Adapter do
           | atom()
 
   @callback validate_bearer(token :: String.t()) ::
-              {:ok, Principal.t()} | {:error, auth_error()}
+              {:ok, Scope.t()} | {:error, auth_error()}
 
   @callback validate_basic(username :: String.t(), password :: String.t()) ::
-              {:ok, Principal.t()} | {:error, auth_error()}
+              {:ok, Scope.t()} | {:error, auth_error()}
 end

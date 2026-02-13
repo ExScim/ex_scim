@@ -4,9 +4,9 @@ defmodule ExScim.Groups.Mapper.Adapter do
   @type group_struct :: struct() | map()
   @type scim_data :: map()
 
-  @callback from_scim(scim_data(), ExScim.Auth.Principal.t()) ::
+  @callback from_scim(scim_data(), ExScim.Scope.t()) ::
               {:ok, group_struct()} | {:error, atom() | term()}
-  @callback to_scim(group_struct(), ExScim.Auth.Principal.t(), keyword()) ::
+  @callback to_scim(group_struct(), ExScim.Scope.t(), keyword()) ::
               {:ok, scim_data()} | {:error, atom() | term()}
 
   @callback get_meta_created(group_struct()) :: DateTime.t() | nil
