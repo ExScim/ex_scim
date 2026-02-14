@@ -19,34 +19,34 @@ defmodule ExScim.Storage.EtsStorage do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  def get_user(id) do
+  def get_user(id, _scope \\ nil) do
     case :ets.lookup(@table_name, id) do
       [{^id, user_data}] -> {:ok, user_data}
       [] -> {:error, :not_found}
     end
   end
 
-  def list_users(filter_ast \\ nil, sort_opts \\ [], pagination_opts \\ []) do
+  def list_users(filter_ast \\ nil, sort_opts \\ [], pagination_opts \\ [], _scope \\ nil) do
     GenServer.call(__MODULE__, {:list_users, filter_ast, sort_opts, pagination_opts})
   end
 
-  def create_user(user_data) do
+  def create_user(user_data, _scope \\ nil) do
     GenServer.call(__MODULE__, {:create_user, user_data})
   end
 
-  def update_user(user_id, user_data) do
+  def update_user(user_id, user_data, _scope \\ nil) do
     GenServer.call(__MODULE__, {:update_user, user_id, user_data})
   end
 
-  def replace_user(user_id, user_data) do
+  def replace_user(user_id, user_data, _scope \\ nil) do
     GenServer.call(__MODULE__, {:replace_user, user_id, user_data})
   end
 
-  def delete_user(user_id) do
+  def delete_user(user_id, _scope \\ nil) do
     GenServer.call(__MODULE__, {:delete_user, user_id})
   end
 
-  def user_exists?(user_id) do
+  def user_exists?(user_id, _scope \\ nil) do
     case get_user(user_id) do
       {:ok, _} -> true
       {:error, :not_found} -> false
@@ -58,34 +58,34 @@ defmodule ExScim.Storage.EtsStorage do
   end
 
   # Group operations
-  def get_group(id) do
+  def get_group(id, _scope \\ nil) do
     case :ets.lookup(@groups_table_name, id) do
       [{^id, group_data}] -> {:ok, group_data}
       [] -> {:error, :not_found}
     end
   end
 
-  def list_groups(filter_ast \\ nil, sort_opts \\ [], pagination_opts \\ []) do
+  def list_groups(filter_ast \\ nil, sort_opts \\ [], pagination_opts \\ [], _scope \\ nil) do
     GenServer.call(__MODULE__, {:list_groups, filter_ast, sort_opts, pagination_opts})
   end
 
-  def create_group(group_data) do
+  def create_group(group_data, _scope \\ nil) do
     GenServer.call(__MODULE__, {:create_group, group_data})
   end
 
-  def update_group(group_id, group_data) do
+  def update_group(group_id, group_data, _scope \\ nil) do
     GenServer.call(__MODULE__, {:update_group, group_id, group_data})
   end
 
-  def replace_group(group_id, group_data) do
+  def replace_group(group_id, group_data, _scope \\ nil) do
     GenServer.call(__MODULE__, {:replace_group, group_id, group_data})
   end
 
-  def delete_group(group_id) do
+  def delete_group(group_id, _scope \\ nil) do
     GenServer.call(__MODULE__, {:delete_group, group_id})
   end
 
-  def group_exists?(group_id) do
+  def group_exists?(group_id, _scope \\ nil) do
     case get_group(group_id) do
       {:ok, _} -> true
       {:error, :not_found} -> false

@@ -31,6 +31,15 @@ defmodule ExScimEcto.StorageAdapter do
             "name.givenName" => :given_name
           }}
 
+  To enable multi-tenant scoping via a discriminator column:
+
+      config :ex_scim,
+        user_model: {MyApp.Accounts.User, lookup_key: :id, tenant_key: :organization_id},
+        group_model: {MyApp.Groups.Group, tenant_key: :organization_id}
+
+  When `tenant_key` is configured and `scope.tenant_id` is not nil, all queries
+  include a WHERE clause on the tenant column, and creates inject the tenant_id.
+
   See also `ExScim.Resources.Resource`.
   """
 
@@ -40,14 +49,14 @@ defmodule ExScimEcto.StorageAdapter do
   require Logger
 
   @impl true
-  def get_user(id) do
-    {_schema, _associations, lookup_key, _filter_mapping} = user_schema()
-    get_resource_by(&user_schema/0, lookup_key, id)
+  def get_user(id, scope \\ nil) do
+    {_schema, _associations, lookup_key, _filter_mapping, tenant_key} = user_schema()
+    get_resource_by(&user_schema/0, lookup_key, id, tenant_key, scope)
   end
 
   @impl true
-  def list_users(filter_ast, sort_opts, pagination_opts) do
-    {user_schema, associations, _lookup_key, filter_mapping} = user_schema()
+  def list_users(filter_ast, sort_opts, pagination_opts, scope \\ nil) do
+    {user_schema, associations, _lookup_key, filter_mapping, tenant_key} = user_schema()
 
     filter_opts = [
       filter_mapping: filter_mapping,
@@ -56,6 +65,7 @@ defmodule ExScimEcto.StorageAdapter do
 
     query =
       from(u in user_schema)
+      |> apply_tenant_scope(tenant_key, scope)
       |> ExScimEcto.QueryFilter.apply_filter(filter_ast, filter_opts)
       |> apply_sorting(sort_opts)
       |> apply_pagination(pagination_opts)
@@ -68,6 +78,7 @@ defmodule ExScimEcto.StorageAdapter do
     # Get total count for pagination
     count_query =
       from(u in user_schema)
+      |> apply_tenant_scope(tenant_key, scope)
       |> ExScimEcto.QueryFilter.apply_filter(filter_ast, filter_opts)
 
     total = repo().aggregate(count_query, :count)
@@ -87,13 +98,20 @@ defmodule ExScimEcto.StorageAdapter do
   end
 
   @impl true
-  def create_user(domain_user) when is_struct(domain_user) do
-    create_user(Map.from_struct(domain_user))
+  def create_user(domain_user, scope \\ nil)
+
+  def create_user(domain_user, scope) when is_struct(domain_user) do
+    create_user_map(Map.from_struct(domain_user), scope)
   end
 
-  def create_user(domain_user) when is_map(domain_user) do
-    # Domain user struct is already validated by Users context
-    {user_schema, associations, _lookup_key, _filter_mapping} = user_schema()
+  def create_user(domain_user, scope) when is_map(domain_user) do
+    create_user_map(domain_user, scope)
+  end
+
+  defp create_user_map(domain_user, scope) do
+    {user_schema, associations, _lookup_key, _filter_mapping, tenant_key} = user_schema()
+
+    domain_user = inject_tenant(domain_user, tenant_key, scope)
 
     changeset =
       user_schema.changeset(user_schema.__struct__(), domain_user)
@@ -104,10 +122,10 @@ defmodule ExScimEcto.StorageAdapter do
   end
 
   @impl true
-  def update_user(id, domain_user) do
-    {user_schema, associations, _lookup_key, _filter_mapping} = user_schema()
+  def update_user(id, domain_user, scope \\ nil) do
+    {user_schema, associations, _lookup_key, _filter_mapping, _tenant_key} = user_schema()
 
-    with {:ok, existing} <- get_user(id) do
+    with {:ok, existing} <- get_user(id, scope) do
       attrs =
         domain_user
         |> map_from_struct()
@@ -123,10 +141,10 @@ defmodule ExScimEcto.StorageAdapter do
   end
 
   @impl true
-  def replace_user(id, domain_user) do
-    {user_schema, _preloads, _lookup_key, _filter_mapping} = user_schema()
+  def replace_user(id, domain_user, scope \\ nil) do
+    {user_schema, _preloads, _lookup_key, _filter_mapping, _tenant_key} = user_schema()
 
-    with {:ok, existing} <- get_user(id) do
+    with {:ok, existing} <- get_user(id, scope) do
       changeset = user_schema.changeset(existing, Map.from_struct(domain_user))
 
       case repo().update(changeset) do
@@ -137,8 +155,8 @@ defmodule ExScimEcto.StorageAdapter do
   end
 
   @impl true
-  def delete_user(id) do
-    with {:ok, user} <- get_user(id),
+  def delete_user(id, scope \\ nil) do
+    with {:ok, user} <- get_user(id, scope),
          {:ok, _} <- repo().delete(user) do
       :ok
     else
@@ -147,21 +165,25 @@ defmodule ExScimEcto.StorageAdapter do
   end
 
   @impl true
-  def user_exists?(id) do
-    {user_schema, _preloads, lookup_key, _filter_mapping} = user_schema()
-    repo().get_by(user_schema, [{lookup_key, id}]) != nil
+  def user_exists?(id, scope \\ nil) do
+    {user_schema, _preloads, lookup_key, _filter_mapping, tenant_key} = user_schema()
+
+    query = from(r in user_schema, where: field(r, ^lookup_key) == ^id)
+    query = apply_tenant_scope(query, tenant_key, scope)
+
+    repo().aggregate(query, :count) > 0
   end
 
   # Group operations
   @impl true
-  def get_group(id) do
-    {_schema, _associations, lookup_key, _filter_mapping} = group_schema()
-    get_resource_by(&group_schema/0, lookup_key, id)
+  def get_group(id, scope \\ nil) do
+    {_schema, _associations, lookup_key, _filter_mapping, tenant_key} = group_schema()
+    get_resource_by(&group_schema/0, lookup_key, id, tenant_key, scope)
   end
 
   @impl true
-  def list_groups(filter_ast, sort_opts, pagination_opts) do
-    {group_schema, associations, _lookup_key, filter_mapping} = group_schema()
+  def list_groups(filter_ast, sort_opts, pagination_opts, scope \\ nil) do
+    {group_schema, associations, _lookup_key, filter_mapping, tenant_key} = group_schema()
 
     filter_opts = [
       filter_mapping: filter_mapping,
@@ -170,6 +192,7 @@ defmodule ExScimEcto.StorageAdapter do
 
     query =
       from(g in group_schema)
+      |> apply_tenant_scope(tenant_key, scope)
       |> ExScimEcto.QueryFilter.apply_filter(filter_ast, filter_opts)
       |> apply_sorting(sort_opts)
       |> apply_pagination(pagination_opts)
@@ -182,6 +205,7 @@ defmodule ExScimEcto.StorageAdapter do
     # Get total count for pagination
     count_query =
       from(g in group_schema)
+      |> apply_tenant_scope(tenant_key, scope)
       |> ExScimEcto.QueryFilter.apply_filter(filter_ast, filter_opts)
 
     total = repo().aggregate(count_query, :count)
@@ -201,12 +225,21 @@ defmodule ExScimEcto.StorageAdapter do
   end
 
   @impl true
-  def create_group(domain_group) when is_struct(domain_group) do
-    create_group(Map.from_struct(domain_group))
+  def create_group(domain_group, scope \\ nil)
+
+  def create_group(domain_group, scope) when is_struct(domain_group) do
+    create_group_map(Map.from_struct(domain_group), scope)
   end
 
-  def create_group(domain_group) when is_map(domain_group) do
-    {group_schema, associations, _lookup_key, _filter_mapping} = group_schema()
+  def create_group(domain_group, scope) when is_map(domain_group) do
+    create_group_map(domain_group, scope)
+  end
+
+  defp create_group_map(domain_group, scope) do
+    {group_schema, associations, _lookup_key, _filter_mapping, tenant_key} = group_schema()
+
+    domain_group = inject_tenant(domain_group, tenant_key, scope)
+
     changeset = group_schema.changeset(group_schema.__struct__(), domain_group)
 
     with {:ok, group} <- repo().insert(changeset) do
@@ -215,10 +248,10 @@ defmodule ExScimEcto.StorageAdapter do
   end
 
   @impl true
-  def update_group(id, domain_group) do
-    {group_schema, associations, _lookup_key, _filter_mapping} = group_schema()
+  def update_group(id, domain_group, scope \\ nil) do
+    {group_schema, associations, _lookup_key, _filter_mapping, _tenant_key} = group_schema()
 
-    with {:ok, existing} <- get_group(id) do
+    with {:ok, existing} <- get_group(id, scope) do
       attrs =
         domain_group
         |> map_from_struct()
@@ -234,10 +267,10 @@ defmodule ExScimEcto.StorageAdapter do
   end
 
   @impl true
-  def replace_group(id, domain_group) do
-    {group_schema, _preloads, _lookup_key, _filter_mapping} = group_schema()
+  def replace_group(id, domain_group, scope \\ nil) do
+    {group_schema, _preloads, _lookup_key, _filter_mapping, _tenant_key} = group_schema()
 
-    with {:ok, existing} <- get_group(id) do
+    with {:ok, existing} <- get_group(id, scope) do
       changeset = group_schema.changeset(existing, Map.from_struct(domain_group))
 
       case repo().update(changeset) do
@@ -248,8 +281,8 @@ defmodule ExScimEcto.StorageAdapter do
   end
 
   @impl true
-  def delete_group(id) do
-    with {:ok, group} <- get_group(id),
+  def delete_group(id, scope \\ nil) do
+    with {:ok, group} <- get_group(id, scope),
          {:ok, _} <- repo().delete(group) do
       :ok
     else
@@ -258,9 +291,13 @@ defmodule ExScimEcto.StorageAdapter do
   end
 
   @impl true
-  def group_exists?(id) do
-    {group_schema, _preloads, lookup_key, _filter_mapping} = group_schema()
-    repo().get_by(group_schema, [{lookup_key, id}]) != nil
+  def group_exists?(id, scope \\ nil) do
+    {group_schema, _preloads, lookup_key, _filter_mapping, tenant_key} = group_schema()
+
+    query = from(r in group_schema, where: field(r, ^lookup_key) == ^id)
+    query = apply_tenant_scope(query, tenant_key, scope)
+
+    repo().aggregate(query, :count) > 0
   end
 
   # Private helper functions
@@ -277,10 +314,11 @@ defmodule ExScimEcto.StorageAdapter do
         {model,
          Keyword.get(opts, :preload, []),
          Keyword.get(opts, :lookup_key, :id),
-         Keyword.get(opts, :filter_mapping, %{})}
+         Keyword.get(opts, :filter_mapping, %{}),
+         Keyword.get(opts, :tenant_key)}
 
       model when not is_nil(model) ->
-        {model, [], :id, %{}}
+        {model, [], :id, %{}, nil}
 
       nil ->
         raise ArgumentError, "Missing configuration for #{inspect(config_key)}"
@@ -291,16 +329,35 @@ defmodule ExScimEcto.StorageAdapter do
   defp maybe_preload(records, _repo, []), do: records
   defp maybe_preload(records, repo, preloads), do: repo.preload(records, preloads)
 
-  defp get_resource_by(schema_opts_fn, field, value) do
-    {resource_schema, associations, _lookup_key, _filter_mapping} = schema_opts_fn.()
+  defp get_resource_by(schema_opts_fn, field, value, tenant_key, scope) do
+    {resource_schema, associations, _lookup_key, _filter_mapping, _tenant_key} = schema_opts_fn.()
 
-    resource_schema
-    |> repo().get_by([{field, value}])
+    query = from(r in resource_schema, where: field(r, ^field) == ^value)
+    query = apply_tenant_scope(query, tenant_key, scope)
+
+    query
+    |> repo().one()
     |> maybe_preload(repo(), associations)
     |> case do
       nil -> {:error, :not_found}
       resource -> {:ok, resource}
     end
+  end
+
+  defp apply_tenant_scope(query, _tenant_key, nil), do: query
+  defp apply_tenant_scope(query, nil, _scope), do: query
+  defp apply_tenant_scope(query, _tenant_key, %ExScim.Scope{tenant_id: nil}), do: query
+
+  defp apply_tenant_scope(query, tenant_key, %ExScim.Scope{tenant_id: tenant_id}) do
+    where(query, [r], field(r, ^tenant_key) == ^tenant_id)
+  end
+
+  defp inject_tenant(data, _tenant_key, nil), do: data
+  defp inject_tenant(data, nil, _scope), do: data
+  defp inject_tenant(data, _tenant_key, %ExScim.Scope{tenant_id: nil}), do: data
+
+  defp inject_tenant(data, tenant_key, %ExScim.Scope{tenant_id: tenant_id}) do
+    Map.put(data, tenant_key, tenant_id)
   end
 
   defp convert_preloaded_structs(map, []), do: map

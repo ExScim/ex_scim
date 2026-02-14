@@ -27,7 +27,7 @@ defmodule ExScimPhoenix.Controller.GroupController do
   @max_count 200
 
   def index(conn, params) do
-    caller = conn.assigns.scim_principal
+    caller = conn.assigns.scim_scope
 
     with {:ok, parsed_params} <- parse_list_params(params),
          {:ok, groups, total_results} <- Groups.list_groups_scim(caller, parsed_params) do
@@ -56,7 +56,7 @@ defmodule ExScimPhoenix.Controller.GroupController do
   end
 
   def show(conn, %{"id" => id}) do
-    caller = conn.assigns.scim_principal
+    caller = conn.assigns.scim_scope
 
     case Groups.get_group(id, caller) do
       {:ok, group} ->
@@ -75,7 +75,7 @@ defmodule ExScimPhoenix.Controller.GroupController do
   end
 
   def create(conn, group_params) do
-    caller = conn.assigns.scim_principal
+    caller = conn.assigns.scim_scope
 
     case Groups.create_group_from_scim(group_params, caller) do
       {:ok, group} ->
@@ -101,7 +101,7 @@ defmodule ExScimPhoenix.Controller.GroupController do
   end
 
   def update(conn, %{"id" => id} = group_params) do
-    caller = conn.assigns.scim_principal
+    caller = conn.assigns.scim_scope
     # Remove id from params to avoid conflicts
     group_params = Map.delete(group_params, "id")
 
@@ -130,7 +130,7 @@ defmodule ExScimPhoenix.Controller.GroupController do
   end
 
   def patch(conn, %{"id" => id} = patch_params) do
-    caller = conn.assigns.scim_principal
+    caller = conn.assigns.scim_scope
     # Remove id from params to avoid conflicts
     patch_params = Map.delete(patch_params, "id")
 
@@ -175,7 +175,7 @@ defmodule ExScimPhoenix.Controller.GroupController do
   end
 
   def delete(conn, %{"id" => id}) do
-    caller = conn.assigns.scim_principal
+    caller = conn.assigns.scim_scope
 
     case Groups.delete_group(id, caller) do
       :ok ->

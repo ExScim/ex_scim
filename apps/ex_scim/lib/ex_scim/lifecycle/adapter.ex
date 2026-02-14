@@ -48,7 +48,7 @@ defmodule ExScim.Lifecycle.Adapter do
   @type resource_data :: term()
   @type resource_id :: binary()
   @type scim_response :: map()
-  @type caller :: ExScim.Auth.Principal.t()
+  @type caller :: ExScim.Scope.t()
   @type operation :: :create | :replace | :patch | :delete | :get
 
   # Before hooks — can modify data or reject

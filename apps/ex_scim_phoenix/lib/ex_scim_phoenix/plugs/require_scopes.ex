@@ -1,10 +1,10 @@
 defmodule ExScimPhoenix.Plugs.RequireScopes do
   @moduledoc """
-  Ensures SCIM principal has required scopes.
+  Ensures SCIM scope has required authorization scopes.
   """
 
   import Plug.Conn
-  alias ExScim.Auth.Principal
+  alias ExScim.Scope
 
   def init(opts) do
     scopes = opts |> Keyword.get(:scopes, []) |> List.wrap()
@@ -12,8 +12,8 @@ defmodule ExScimPhoenix.Plugs.RequireScopes do
   end
 
   def call(conn, %{scopes: required_scopes}) do
-    case conn.assigns[:scim_principal] do
-      %Principal{scopes: scopes} ->
+    case conn.assigns[:scim_scope] do
+      %Scope{scopes: scopes} ->
         if Enum.all?(required_scopes, &(&1 in scopes)) do
           conn
         else

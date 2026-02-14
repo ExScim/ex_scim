@@ -7,7 +7,7 @@ defmodule ExScimPhoenix.Controller.MeController do
   require Logger
 
   alias ExScim.Operations.Users
-  alias ExScim.Auth.Principal
+  alias ExScim.Scope
   alias ExScim.Config
   import ExScimPhoenix.ErrorResponse
 
@@ -22,8 +22,8 @@ defmodule ExScimPhoenix.Controller.MeController do
   plug(ExScimPhoenix.Plugs.RequireScopes, [scopes: "scim:me:delete"] when action in [:delete])
 
   def show(conn, _params) do
-    case conn.assigns[:scim_principal] do
-      %Principal{id: user_id} = caller ->
+    case conn.assigns[:scim_scope] do
+      %Scope{id: user_id} = caller ->
         with {:ok, user} <- Users.get_user(user_id, caller) do
           conn
           |> put_resp_header("location", scim_me_location(conn))
@@ -60,7 +60,7 @@ defmodule ExScimPhoenix.Controller.MeController do
   end
 
   def create(conn, user_params) do
-    caller = conn.assigns[:scim_principal]
+    caller = conn.assigns[:scim_scope]
 
     with {:ok, enhanced_params} <- enhance_params_for_me_create(user_params, caller),
          {:ok, user} <- Users.create_user_from_scim(enhanced_params, caller) do
@@ -102,7 +102,7 @@ defmodule ExScimPhoenix.Controller.MeController do
   end
 
   def update(conn, user_params) do
-    caller = conn.assigns[:scim_principal]
+    caller = conn.assigns[:scim_scope]
     user_id = caller.id
     clean_params = Map.delete(user_params, "id")
 
@@ -132,7 +132,7 @@ defmodule ExScimPhoenix.Controller.MeController do
   end
 
   def patch(conn, patch_params) do
-    caller = conn.assigns[:scim_principal]
+    caller = conn.assigns[:scim_scope]
     user_id = caller.id
     clean_params = Map.delete(patch_params, "id")
 
@@ -178,7 +178,7 @@ defmodule ExScimPhoenix.Controller.MeController do
   end
 
   def delete(conn, _params) do
-    caller = conn.assigns[:scim_principal]
+    caller = conn.assigns[:scim_scope]
     user_id = caller.id
 
     case Users.delete_user(user_id, caller) do
@@ -194,9 +194,9 @@ defmodule ExScimPhoenix.Controller.MeController do
     end
   end
 
-  defp enhance_params_for_me_create(user_params, principal) do
-    case principal do
-      %Principal{metadata: %{claims: claims}} when is_map(claims) ->
+  defp enhance_params_for_me_create(user_params, scope) do
+    case scope do
+      %Scope{metadata: %{claims: claims}} when is_map(claims) ->
         # Extract user info from JWT claims
         enhanced_params =
           user_params
@@ -207,7 +207,7 @@ defmodule ExScimPhoenix.Controller.MeController do
 
         {:ok, enhanced_params}
 
-      %Principal{metadata: %{user_info: user_info}} when is_map(user_info) ->
+      %Scope{metadata: %{user_info: user_info}} when is_map(user_info) ->
         # Extract from OAuth user info
         enhanced_params =
           user_params
@@ -217,8 +217,8 @@ defmodule ExScimPhoenix.Controller.MeController do
 
         {:ok, enhanced_params}
 
-      %Principal{id: id} ->
-        # Fallback — use principal id as externalId
+      %Scope{id: id} ->
+        # Fallback — use scope id as externalId
         enhanced_params = Map.put(user_params, "externalId", id)
         {:ok, enhanced_params}
     end

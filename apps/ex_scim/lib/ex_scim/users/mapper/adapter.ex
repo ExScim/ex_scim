@@ -4,9 +4,9 @@ defmodule ExScim.Users.Mapper.Adapter do
   @type user_struct :: struct() | map()
   @type scim_data :: map()
 
-  @callback from_scim(scim_data(), ExScim.Auth.Principal.t()) ::
+  @callback from_scim(scim_data(), ExScim.Scope.t()) ::
               {:ok, user_struct()} | {:error, atom() | term()}
-  @callback to_scim(user_struct(), ExScim.Auth.Principal.t(), keyword()) ::
+  @callback to_scim(user_struct(), ExScim.Scope.t(), keyword()) ::
               {:ok, scim_data()} | {:error, atom() | term()}
 
   @callback get_meta_created(user_struct()) :: DateTime.t() | nil

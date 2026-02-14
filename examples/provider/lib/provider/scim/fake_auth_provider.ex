@@ -1,6 +1,6 @@
 defmodule Provider.Scim.FakeAuthProvider do
   @behaviour ExScim.Auth.AuthProvider.Adapter
-  alias ExScim.Auth.Principal
+  alias ExScim.Scope
 
   defp fake_tokens do
     %{
@@ -78,7 +78,7 @@ defmodule Provider.Scim.FakeAuthProvider do
     case Map.get(fake_tokens(), token) do
       %{active: true, expires_at: exp} = data ->
         if DateTime.compare(DateTime.utc_now(), exp) == :lt do
-          Principal.new(data)
+          Scope.new(data)
         else
           {:error, :expired_token}
         end
@@ -98,7 +98,7 @@ defmodule Provider.Scim.FakeAuthProvider do
         {:error, :invalid_credentials}
 
       data ->
-        Principal.new(Map.put(data, :username, username))
+        Scope.new(Map.put(data, :username, username))
     end
   end
 end

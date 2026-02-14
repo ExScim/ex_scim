@@ -1,12 +1,17 @@
-defmodule ExScim.Auth.Principal do
+defmodule ExScim.Scope do
   @moduledoc """
-  Represents an authenticated SCIM principal (user or client).
+  Represents the scope of a SCIM request: identity, authorization, and tenant context.
+
+  Replaces `Principal` with an additional `tenant_id` field for multi-tenancy support.
+  When `tenant_id` is `nil`, the system behaves as single-tenant (no isolation).
   """
 
   @enforce_keys [:id, :scopes]
   defstruct [
-    # Internal ID or client ID
+    # Who: API client or user ID (required)
     :id,
+    # Where: tenant identifier (nil = single-tenant)
+    :tenant_id,
     # For Basic Auth users
     :username,
     # Human-readable
@@ -19,6 +24,7 @@ defmodule ExScim.Auth.Principal do
 
   @type t :: %__MODULE__{
           id: String.t(),
+          tenant_id: String.t() | nil,
           username: String.t() | nil,
           display_name: String.t() | nil,
           scopes: [String.t()],
@@ -26,17 +32,17 @@ defmodule ExScim.Auth.Principal do
         }
 
   @doc """
-  Creates a new Principal from a map or keyword list.
+  Creates a new Scope from a map or keyword list.
 
   Raises `ArgumentError` if required keys `:id` or `:scopes` are missing.
 
   ## Examples
 
-      iex> Principal.new(%{id: "user_1", scopes: ["scim:read"]})
-      {:ok, %Principal{id: "user_1", scopes: ["scim:read"], metadata: %{}}}
+      iex> Scope.new(%{id: "user_1", scopes: ["scim:read"]})
+      {:ok, %Scope{id: "user_1", scopes: ["scim:read"], metadata: %{}}}
 
-      iex> Principal.new(id: "client_1", scopes: ["scim:read", "scim:write"], metadata: %{grant_type: "client_credentials"})
-      {:ok, %Principal{id: "client_1", scopes: ["scim:read", "scim:write"], metadata: %{grant_type: "client_credentials"}}}
+      iex> Scope.new(id: "client_1", scopes: ["scim:read", "scim:write"], tenant_id: "org_123")
+      {:ok, %Scope{id: "client_1", scopes: ["scim:read", "scim:write"], tenant_id: "org_123", metadata: %{}}}
   """
   @spec new(map() | keyword()) :: {:ok, t()} | :error
   def new(attrs) when is_list(attrs), do: new(Map.new(attrs))
@@ -46,6 +52,7 @@ defmodule ExScim.Auth.Principal do
      %__MODULE__{
        id: id,
        scopes: scopes,
+       tenant_id: Map.get(attrs, :tenant_id),
        username: Map.get(attrs, :username),
        display_name: Map.get(attrs, :display_name),
        metadata: Map.get(attrs, :metadata, %{})
@@ -55,7 +62,7 @@ defmodule ExScim.Auth.Principal do
   def new(attrs) when is_map(attrs), do: :error
 
   @doc """
-  Returns `true` if the principal has the given scope.
+  Returns `true` if the scope has the given authorization scope.
   """
   @spec has_scope?(t(), String.t()) :: boolean()
   def has_scope?(%__MODULE__{scopes: scopes}, scope) when is_binary(scope) do
@@ -63,7 +70,7 @@ defmodule ExScim.Auth.Principal do
   end
 
   @doc """
-  Returns `true` if the principal has all of the given scopes.
+  Returns `true` if the scope has all of the given authorization scopes.
   """
   @spec has_all_scopes?(t(), [String.t()]) :: boolean()
   def has_all_scopes?(%__MODULE__{scopes: scopes}, required_scopes)

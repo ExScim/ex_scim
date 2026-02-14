@@ -26,7 +26,7 @@ defmodule ExScimPhoenix.Controller.BulkController do
   @default_fail_on_errors 0
 
   def bulk(conn, bulk_request) do
-    caller = conn.assigns.scim_principal
+    caller = conn.assigns.scim_scope
 
     # Get configuration from application config
     bulk_config = get_bulk_config()

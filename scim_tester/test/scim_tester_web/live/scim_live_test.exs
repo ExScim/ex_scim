@@ -252,13 +252,11 @@ defmodule ScimTesterWeb.ScimLiveTest do
       assert html =~ "count=50"
     end
 
-    test "changing page size in composer updates preview", %{conn: conn} do
+    test "changing page size updates request preview", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/search")
       connect_client(view)
 
-      view
-      |> element("select[phx-change=update_search_page_size]")
-      |> render_change(%{"page_size" => "25"})
+      render_hook(view, "search_page_size", %{"page_size" => "25"})
 
       html = render(view)
       assert html =~ "count=25"

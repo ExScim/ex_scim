@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ex_scim
 #### Added
+- Optional multi-tenancy support via `ExScim.Scope` struct with `tenant_id` field
+- `ExScim.Tenant.Resolver` behaviour for resolving tenant context from requests
+- Tenant-aware URL generation (`Config.resource_url/3`, `Config.collection_url/2`)
 - Lifecycle hooks for SCIM operations (before/after create, update, delete)
 - Configurable `resource_types` per provider
 - Schema Builder DSL for declarative schema definitions
@@ -18,8 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Filtering on associated tables in QueryFilter
 
 #### Changed
+- Replaced `ExScim.Auth.Principal` with `ExScim.Scope` (adds `tenant_id`, `metadata`)
+- All Storage adapter callbacks now accept an optional `scope` parameter for tenant isolation
+- Operations modules thread `scope` through to Storage and Mapper calls
 - Full namespace for resource protocol implementations
-- `Principal` helper no longer raises on construction
 
 #### Fixed
 - SCIM filter pipeline
@@ -28,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### ex_scim_ecto
 #### Added
 - Configurable `lookup_key` option on storage adapter
+- Configurable `tenant_key` option for discriminator-column multi-tenancy
+- Automatic tenant scoping on all queries when `tenant_key` and `scope.tenant_id` are set
+- Tenant ID injection on resource creation
 
 #### Changed
 - Removed unused lookup functions from storage adapter
@@ -36,6 +44,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ecto query generation for filters
 
 ### ex_scim_phoenix
+#### Added
+- `ExScimPhoenix.Plugs.ScimTenant` plug for tenant resolution in the request pipeline
+
+#### Changed
+- Auth plug now assigns `scim_scope` (was `scim_principal`) to conn
+- All controllers read from `conn.assigns.scim_scope`
+
 #### Fixed
 - Colocated hooks location
 
