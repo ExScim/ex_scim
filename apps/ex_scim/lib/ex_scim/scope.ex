@@ -2,7 +2,6 @@ defmodule ExScim.Scope do
   @moduledoc """
   Represents the scope of a SCIM request: identity, authorization, and tenant context.
 
-  Replaces `Principal` with an additional `tenant_id` field for multi-tenancy support.
   When `tenant_id` is `nil`, the system behaves as single-tenant (no isolation).
   """
 
