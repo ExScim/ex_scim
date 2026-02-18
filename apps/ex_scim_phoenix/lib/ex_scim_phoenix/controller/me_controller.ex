@@ -218,7 +218,7 @@ defmodule ExScimPhoenix.Controller.MeController do
         {:ok, enhanced_params}
 
       %Scope{id: id} ->
-        # Fallback — use scope id as externalId
+        # Fallback: use scope id as externalId
         enhanced_params = Map.put(user_params, "externalId", id)
         {:ok, enhanced_params}
     end

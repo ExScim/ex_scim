@@ -16,7 +16,7 @@ defmodule ExScim.Lifecycle do
 
   require Logger
 
-  # Before hooks — fail closed
+  # Before hooks: fail closed
 
   def before_create(resource_type, resource_data, caller) do
     case adapter() do
@@ -31,7 +31,9 @@ defmodule ExScim.Lifecycle do
         {:ok, resource_data}
 
       mod ->
-        safe_before(fn -> mod.before_replace(resource_type, resource_id, resource_data, caller) end)
+        safe_before(fn ->
+          mod.before_replace(resource_type, resource_id, resource_data, caller)
+        end)
     end
   end
 
@@ -59,7 +61,7 @@ defmodule ExScim.Lifecycle do
     end
   end
 
-  # After hooks — fail open
+  # After hooks: fail open
 
   def after_create(resource_type, scim_response, caller) do
     safe_after(fn ->
@@ -106,7 +108,7 @@ defmodule ExScim.Lifecycle do
     end)
   end
 
-  # Error hook — fail open
+  # Error hook: fail open
 
   def on_error(operation, resource_type, error, caller) do
     safe_after(fn ->
