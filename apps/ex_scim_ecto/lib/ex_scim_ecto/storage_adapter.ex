@@ -31,6 +31,23 @@ defmodule ExScimEcto.StorageAdapter do
             "name.givenName" => :given_name
           }}
 
+  To map SCIM paths to association fields (for has_many/has_one relations):
+
+      config :ex_scim,
+        user_model: {MyApp.Accounts.User,
+          preload: [:user_emails],
+          filter_mapping: %{
+            "emails.value" => {:assoc, :user_emails, :value},
+            "emails.type" => {:assoc, :user_emails, :type}
+          }}
+
+  The association tuple format is `{:assoc, assoc_name, field_name}` where:
+  - `assoc_name` is the association name as defined in your schema
+  - `field_name` is the column in the associated table to filter on
+
+  When filtering on associations, a LEFT JOIN is automatically added and
+  results are made DISTINCT to avoid duplicate root records.
+
   To enable multi-tenant scoping via a discriminator column:
 
       config :ex_scim,
