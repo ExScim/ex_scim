@@ -1,18 +1,23 @@
 defmodule ExScim.MixProject do
   use Mix.Project
 
+  @version "0.1.0"
+  @source_url "https://github.com/ExScim/ex_scim"
+
   def project do
     [
       app: :ex_scim,
-      version: "0.1.0",
+      version: @version,
       elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      description: "SCIM 2.0 protocol implementation for Elixir",
+      package: package(),
+      source_url: @source_url
     ]
   end
 
-  # Run "mix help compile.app" to learn about applications.
   def application do
     [
       extra_applications: [:logger],
@@ -23,11 +28,16 @@ defmodule ExScim.MixProject do
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
-  # Run "mix help deps" to learn about dependencies.
+  defp package do
+    [
+      licenses: ["MIT"],
+      links: %{"GitHub" => @source_url},
+      files: ["lib", "mix.exs", "README.md", "../../LICENSE", "../../CHANGELOG.md"]
+    ]
+  end
+
   defp deps do
     [
-      # {:dep_from_hexpm, "~> 0.3.0"},
-      # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"},      
       {:nimble_parsec, "~> 1.4"}
     ]
   end

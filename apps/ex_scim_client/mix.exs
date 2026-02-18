@@ -1,28 +1,38 @@
 defmodule ExScimClient.MixProject do
   use Mix.Project
 
+  @version "0.1.0"
+  @source_url "https://github.com/ExScim/ex_scim"
+
   def project do
     [
       app: :ex_scim_client,
-      version: "0.1.0",
+      version: @version,
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      description: "HTTP client for consuming SCIM 2.0 APIs",
+      package: package(),
+      source_url: @source_url
     ]
   end
 
-  # Run "mix help compile.app" to learn about applications.
   def application do
     [
       extra_applications: [:logger]
     ]
   end
 
-  # Run "mix help deps" to learn about dependencies.
+  defp package do
+    [
+      licenses: ["MIT"],
+      links: %{"GitHub" => @source_url},
+      files: ["lib", "mix.exs", "README.md", "../../LICENSE", "../../CHANGELOG.md"]
+    ]
+  end
+
   defp deps do
     [
-      # {:dep_from_hexpm, "~> 0.3.0"},
-      # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
       {:req, "~> 0.5.0"},
       {:jason, "~> 1.4"},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}

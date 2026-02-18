@@ -1,27 +1,39 @@
 defmodule ExScimEcto.MixProject do
   use Mix.Project
 
+  @version "0.1.0"
+  @source_url "https://github.com/ExScim/ex_scim"
+
   def project do
     [
       app: :ex_scim_ecto,
-      version: "0.1.0",
+      version: @version,
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      description: "Ecto-based storage adapter for ExScim",
+      package: package(),
+      source_url: @source_url
     ]
   end
 
-  # Run "mix help compile.app" to learn about applications.
   def application do
     [
       extra_applications: [:logger]
     ]
   end
 
-  # Run "mix help deps" to learn about dependencies.
+  defp package do
+    [
+      licenses: ["MIT"],
+      links: %{"GitHub" => @source_url},
+      files: ["lib", "mix.exs", "README.md", "../../LICENSE", "../../CHANGELOG.md"]
+    ]
+  end
+
   defp deps do
     [
-      {:ex_scim, in_umbrella: true},
+      {:ex_scim, "~> 0.1.0"},
       {:ecto_sql, "~> 3.0"},
       {:postgrex, ">= 0.0.0"}
     ]
