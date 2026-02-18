@@ -33,9 +33,10 @@ defmodule ExScimEcto.MixProject do
 
   defp deps do
     [
-      {:ex_scim, "~> 0.1.0"},
+      {:ex_scim, in_umbrella: true},
       {:ecto_sql, "~> 3.0"},
-      {:postgrex, ">= 0.0.0"}
+      {:postgrex, ">= 0.0.0"},
+      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
     ]
   end
 end

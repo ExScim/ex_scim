@@ -37,9 +37,10 @@ defmodule ExScimPhoenix.MixProject do
 
   defp deps do
     [
-      {:ex_scim, "~> 0.1.0"},
+      {:ex_scim, in_umbrella: true},
       {:phoenix, "~> 1.8.0"},
-      {:jason, "~> 1.2"}
+      {:jason, "~> 1.2"},
+      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
     ]
   end
 end
