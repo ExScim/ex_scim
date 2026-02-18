@@ -133,10 +133,10 @@ All options are set under `config :ex_scim`.
 
 When using the `{Schema, opts}` tuple form, available sub-options are:
 
-- `:preload` — list of associations to preload (default `[]`)
-- `:lookup_key` — primary key field (default `:id`)
-- `:filter_mapping` — map of SCIM attribute paths to DB columns (default `%{}`)
-- `:tenant_key` — column used for multi-tenant scoping (default `nil`)
+- `:preload` - list of associations to preload (default `[]`)
+- `:lookup_key` - primary key field (default `:id`)
+- `:filter_mapping` - map of SCIM attribute paths to DB columns (default `%{}`)
+- `:tenant_key` - column used for multi-tenant scoping (default `nil`)
 
 ```elixir
 config :ex_scim,
@@ -190,13 +190,13 @@ Reported in the ServiceProviderConfig discovery endpoint.
 
 ## Multi-Tenancy
 
-Multi-tenancy is opt-in. When no `tenant_resolver` is configured (or `scope.tenant_id` is `nil`), the system operates in single-tenant mode — no isolation is applied.
+Multi-tenancy is opt-in. When no `tenant_resolver` is configured (or `scope.tenant_id` is `nil`), the system operates in single-tenant mode. No isolation is applied.
 
 To enable it, wire up three pieces:
 
-1. **Tenant resolver** — implement `ExScim.Tenant.Resolver` to extract a tenant identifier from the request (header, subdomain, path, etc.).
-2. **Phoenix plug** — add `ExScimPhoenix.Plugs.ScimTenant` to your SCIM pipeline after `ScimAuth`.
-3. **Ecto tenant key** — set `:tenant_key` on your model tuples so queries are scoped and creates inject the tenant ID.
+1. **Tenant resolver** - implement `ExScim.Tenant.Resolver` to extract a tenant identifier from the request (header, subdomain, path, etc.).
+2. **Phoenix plug** - add `ExScimPhoenix.Plugs.ScimTenant` to your SCIM pipeline after `ScimAuth`.
+3. **Ecto tenant key** - set `:tenant_key` on your model tuples so queries are scoped and creates inject the tenant ID.
 
 ```elixir
 # 1. Resolver

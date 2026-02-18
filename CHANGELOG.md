@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configurable `tenant_key` option for discriminator-column multi-tenancy
 - Automatic tenant scoping on all queries when `tenant_key` and `scope.tenant_id` are set
 - Tenant ID injection on resource creation
+- `field_mapping` config option for mapping domain fields to DB columns with value transformation on reads, writes, and filter queries
 
 #### Changed
 - Removed unused lookup functions from storage adapter

@@ -3,7 +3,7 @@ defmodule ExScim.Lifecycle.Adapter do
   Behaviour for lifecycle hooks around SCIM operations.
 
   Implement this behaviour to run custom logic before or after SCIM operations.
-  All callbacks are optional — unimplemented callbacks are no-ops.
+  All callbacks are optional. Unimplemented callbacks are no-ops.
 
   ## Configuration
 
@@ -51,7 +51,7 @@ defmodule ExScim.Lifecycle.Adapter do
   @type caller :: ExScim.Scope.t()
   @type operation :: :create | :replace | :patch | :delete | :get
 
-  # Before hooks — can modify data or reject
+  # Before hooks: can modify data or reject
   @callback before_create(resource_type(), resource_data(), caller()) ::
               {:ok, resource_data()} | {:error, term()}
   @callback before_replace(resource_type(), resource_id(), resource_data(), caller()) ::
@@ -63,14 +63,14 @@ defmodule ExScim.Lifecycle.Adapter do
   @callback before_get(resource_type(), resource_id(), caller()) ::
               :ok | {:error, term()}
 
-  # After hooks — observe only
+  # After hooks: observe only
   @callback after_create(resource_type(), scim_response(), caller()) :: :ok
   @callback after_replace(resource_type(), scim_response(), caller()) :: :ok
   @callback after_patch(resource_type(), scim_response(), caller()) :: :ok
   @callback after_delete(resource_type(), resource_id(), caller()) :: :ok
   @callback after_get(resource_type(), scim_response(), caller()) :: :ok
 
-  # Error hook — observe only
+  # Error hook: observe only
   @callback on_error(operation(), resource_type(), term(), caller()) :: :ok
 
   @optional_callbacks [

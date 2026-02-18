@@ -61,7 +61,7 @@ defmodule ExScimEcto.QueryFilter do
     dynamic([], not (^build_dynamic(expr, opts)))
   end
 
-  # Comparison helpers — atom (root table column)
+  # Comparison helpers - atom (root table column)
   defp apply_comparison(field, :eq, value) when is_atom(field) do
     dynamic([u], field(u, ^field) == ^value)
   end
@@ -86,7 +86,12 @@ defmodule ExScimEcto.QueryFilter do
     dynamic([u], field(u, ^field) <= ^value)
   end
 
-  # Comparison helpers — association
+  # Comparison helpers - transformed (field_mapping with value transformation)
+  defp apply_comparison({:transformed, field, transform_fn}, op, value) do
+    apply_comparison(field, op, transform_fn.(value))
+  end
+
+  # Comparison helpers - association
   defp apply_comparison({:assoc, assoc_name, col}, :eq, value) do
     dynamic([{^assoc_name, x}], field(x, ^col) == ^value)
   end
@@ -111,7 +116,7 @@ defmodule ExScimEcto.QueryFilter do
     dynamic([{^assoc_name, x}], field(x, ^col) <= ^value)
   end
 
-  # Like helpers — atom (root table column)
+  # Like helpers - atom (root table column)
   defp apply_like(field, :co, value) when is_atom(field) do
     dynamic([u], like(field(u, ^field), ^"%#{value}%"))
   end
@@ -124,7 +129,12 @@ defmodule ExScimEcto.QueryFilter do
     dynamic([u], like(field(u, ^field), ^"%#{value}"))
   end
 
-  # Like helpers — association
+  # Like helpers - transformed
+  defp apply_like({:transformed, field, transform_fn}, op, value) do
+    apply_like(field, op, transform_fn.(value))
+  end
+
+  # Like helpers - association
   defp apply_like({:assoc, assoc_name, col}, :co, value) do
     dynamic([{^assoc_name, x}], like(field(x, ^col), ^"%#{value}%"))
   end
@@ -135,6 +145,11 @@ defmodule ExScimEcto.QueryFilter do
 
   defp apply_like({:assoc, assoc_name, col}, :ew, value) do
     dynamic([{^assoc_name, x}], like(field(x, ^col), ^"%#{value}"))
+  end
+
+  # Present helpers - transformed
+  defp apply_present({:transformed, field, _transform_fn}) do
+    apply_present(field)
   end
 
   # Present helpers
@@ -150,42 +165,53 @@ defmodule ExScimEcto.QueryFilter do
 
   defp resolve_field(scim_path, opts) do
     filter_mapping = Keyword.get(opts, :filter_mapping, %{})
+    field_mapping = Keyword.get(opts, :field_mapping, %{})
     schema_fields = Keyword.get(opts, :schema_fields, nil)
 
-    case Map.get(filter_mapping, scim_path) do
-      nil ->
-        underscore = Macro.underscore(scim_path)
+    resolved =
+      case Map.get(filter_mapping, scim_path) do
+        nil ->
+          underscore = Macro.underscore(scim_path)
 
-        if String.contains?(underscore, ".") or String.contains?(underscore, "/") do
-          raise ArgumentError,
-                "Unsupported filter attribute \"#{scim_path}\". " <>
-                  "Complex attribute paths require an explicit filter_mapping configuration."
-        end
-
-        atom =
-          try do
-            String.to_existing_atom(underscore)
-          rescue
-            ArgumentError ->
-              raise ArgumentError, "Unknown filter attribute \"#{scim_path}\""
+          if String.contains?(underscore, ".") or String.contains?(underscore, "/") do
+            raise ArgumentError,
+                  "Unsupported filter attribute \"#{scim_path}\". " <>
+                    "Complex attribute paths require an explicit filter_mapping configuration."
           end
 
-        if schema_fields && atom not in schema_fields do
-          raise ArgumentError, "Unknown filter attribute \"#{scim_path}\""
-        end
+          atom =
+            try do
+              String.to_existing_atom(underscore)
+            rescue
+              ArgumentError ->
+                raise ArgumentError, "Unknown filter attribute \"#{scim_path}\""
+            end
 
-        atom
+          if schema_fields && atom not in schema_fields &&
+               not Map.has_key?(field_mapping, atom) do
+            raise ArgumentError, "Unknown filter attribute \"#{scim_path}\""
+          end
 
-      mapped_atom when is_atom(mapped_atom) ->
-        mapped_atom
+          atom
 
-      {:assoc, assoc_name, field_name} = assoc_ref
-      when is_atom(assoc_name) and is_atom(field_name) ->
-        assoc_ref
+        mapped_atom when is_atom(mapped_atom) ->
+          mapped_atom
+
+        {:assoc, assoc_name, field_name} = assoc_ref
+        when is_atom(assoc_name) and is_atom(field_name) ->
+          assoc_ref
+      end
+
+    case {resolved, Map.get(field_mapping, resolved)} do
+      {atom, {db_field, to_fn, _from_fn}} when is_atom(atom) ->
+        {:transformed, db_field, to_fn}
+
+      _ ->
+        resolved
     end
   end
 
-  # Association collection — walks the AST and collects unique association names
+  # Association collection - walks the AST and collects unique association names
 
   defp collect_associations(ast, opts) do
     do_collect_associations(ast, opts, MapSet.new())
@@ -197,6 +223,7 @@ defmodule ExScimEcto.QueryFilter do
        when op in [:eq, :ne, :co, :sw, :ew, :gt, :ge, :lt, :le] do
     case resolve_field(field, opts) do
       {:assoc, assoc_name, _col} -> MapSet.put(acc, assoc_name)
+      {:transformed, _field, _fn} -> acc
       _atom -> acc
     end
   end
@@ -204,6 +231,7 @@ defmodule ExScimEcto.QueryFilter do
   defp do_collect_associations({:pr, field}, opts, acc) do
     case resolve_field(field, opts) do
       {:assoc, assoc_name, _col} -> MapSet.put(acc, assoc_name)
+      {:transformed, _field, _fn} -> acc
       _atom -> acc
     end
   end

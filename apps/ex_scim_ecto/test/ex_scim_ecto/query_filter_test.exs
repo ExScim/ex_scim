@@ -4,15 +4,15 @@ defmodule ExScimEcto.QueryFilterTest do
   alias ExScimEcto.QueryFilter
   import Ecto.Query
 
-  # Minimal test schemas — no database needed, we only inspect the Ecto.Query struct.
+  # Minimal test schemas (no database needed, only inspect the Ecto.Query struct).
 
   defmodule UserEmail do
     use Ecto.Schema
 
     schema "user_emails" do
-      field :default_value, :string
-      field :type, :string
-      belongs_to :user, ExScimEcto.QueryFilterTest.User
+      field(:default_value, :string)
+      field(:type, :string)
+      belongs_to(:user, ExScimEcto.QueryFilterTest.User)
     end
   end
 
@@ -20,11 +20,12 @@ defmodule ExScimEcto.QueryFilterTest do
     use Ecto.Schema
 
     schema "users" do
-      field :user_name, :string
-      field :given_name, :string
-      field :family_name, :string
-      field :active, :boolean
-      has_many :user_emails, ExScimEcto.QueryFilterTest.UserEmail
+      field(:user_name, :string)
+      field(:given_name, :string)
+      field(:family_name, :string)
+      field(:active, :boolean)
+      field(:status, :string)
+      has_many(:user_emails, ExScimEcto.QueryFilterTest.UserEmail)
     end
   end
 
@@ -42,6 +43,45 @@ defmodule ExScimEcto.QueryFilterTest do
       "name.familyName" => :family_name
     }
   ]
+
+  defp field_mapping_opts do
+    [
+      field_mapping: %{
+        active:
+          {:status,
+           fn
+             true -> "active"
+             false -> "inactive"
+           end,
+           fn
+             "active" -> true
+             _ -> false
+           end}
+      },
+      schema_fields: User.__schema__(:fields)
+    ]
+  end
+
+  defp filter_and_field_mapping_opts do
+    [
+      filter_mapping: %{
+        "name.givenName" => :given_name
+      },
+      field_mapping: %{
+        active:
+          {:status,
+           fn
+             true -> "active"
+             false -> "inactive"
+           end,
+           fn
+             "active" -> true
+             _ -> false
+           end}
+      },
+      schema_fields: User.__schema__(:fields)
+    ]
+  end
 
   defp base_query, do: from(u in User)
 
@@ -116,10 +156,7 @@ defmodule ExScimEcto.QueryFilterTest do
 
   describe "join deduplication" do
     test "and with two filters on same association produces one join" do
-      ast = {:and,
-        {:eq, "emails.value", "john@example.com"},
-        {:eq, "emails.type", "work"}
-      }
+      ast = {:and, {:eq, "emails.value", "john@example.com"}, {:eq, "emails.type", "work"}}
       query = QueryFilter.apply_filter(base_query(), ast, @assoc_opts)
 
       assert join_count(query) == 1
@@ -131,10 +168,7 @@ defmodule ExScimEcto.QueryFilterTest do
 
   describe "mixed local and association filters" do
     test "and with local and association filter" do
-      ast = {:and,
-        {:eq, "name.givenName", "John"},
-        {:eq, "emails.value", "john@example.com"}
-      }
+      ast = {:and, {:eq, "name.givenName", "John"}, {:eq, "emails.value", "john@example.com"}}
       query = QueryFilter.apply_filter(base_query(), ast, @assoc_opts)
 
       assert join_count(query) == 1
@@ -143,10 +177,7 @@ defmodule ExScimEcto.QueryFilterTest do
     end
 
     test "or with local and association filter" do
-      ast = {:or,
-        {:eq, "name.givenName", "John"},
-        {:eq, "emails.value", "john@example.com"}
-      }
+      ast = {:or, {:eq, "name.givenName", "John"}, {:eq, "emails.value", "john@example.com"}}
       query = QueryFilter.apply_filter(base_query(), ast, @assoc_opts)
 
       assert join_count(query) == 1
@@ -235,6 +266,76 @@ defmodule ExScimEcto.QueryFilterTest do
 
       assert join_count(query) == 0
       refute has_distinct?(query)
+    end
+  end
+
+  # 10. field_mapping transforms values and renames fields
+
+  describe "field_mapping value transformation" do
+    test "eq with field_mapping transforms value and uses db field" do
+      ast = {:eq, "active", true}
+      query = QueryFilter.apply_filter(base_query(), ast, field_mapping_opts())
+
+      assert join_count(query) == 0
+      refute has_distinct?(query)
+      # The query should use :status field with "active" value
+      assert inspect(query.wheres) =~ "status"
+    end
+
+    test "ne with field_mapping transforms value" do
+      ast = {:ne, "active", true}
+      query = QueryFilter.apply_filter(base_query(), ast, field_mapping_opts())
+
+      assert join_count(query) == 0
+      assert inspect(query.wheres) =~ "status"
+    end
+
+    test "pr with field_mapping uses db field without transforming value" do
+      ast = {:pr, "active"}
+      query = QueryFilter.apply_filter(base_query(), ast, field_mapping_opts())
+
+      assert join_count(query) == 0
+      assert inspect(query.wheres) =~ "status"
+    end
+
+    test "co with field_mapping transforms value" do
+      ast = {:co, "active", true}
+      query = QueryFilter.apply_filter(base_query(), ast, field_mapping_opts())
+
+      assert join_count(query) == 0
+      assert inspect(query.wheres) =~ "status"
+    end
+
+    test "field_mapping does not add joins or distinct" do
+      ast = {:eq, "active", false}
+      query = QueryFilter.apply_filter(base_query(), ast, field_mapping_opts())
+
+      assert join_count(query) == 0
+      refute has_distinct?(query)
+    end
+  end
+
+  # 11. filter_mapping and field_mapping work together
+
+  describe "filter_mapping and field_mapping interaction" do
+    test "filter_mapping resolves path, field_mapping not applied to filter_mapping result" do
+      # "name.givenName" is resolved by filter_mapping to :given_name
+      # :given_name has no field_mapping entry, so it stays as-is
+      ast = {:eq, "name.givenName", "John"}
+      query = QueryFilter.apply_filter(base_query(), ast, filter_and_field_mapping_opts())
+
+      assert join_count(query) == 0
+      assert inspect(query.wheres) =~ "given_name"
+    end
+
+    test "field_mapping works alongside filter_mapping for different fields" do
+      ast = {:and, {:eq, "name.givenName", "John"}, {:eq, "active", true}}
+      query = QueryFilter.apply_filter(base_query(), ast, filter_and_field_mapping_opts())
+
+      assert join_count(query) == 0
+      wheres = inspect(query.wheres)
+      assert wheres =~ "given_name"
+      assert wheres =~ "status"
     end
   end
 end

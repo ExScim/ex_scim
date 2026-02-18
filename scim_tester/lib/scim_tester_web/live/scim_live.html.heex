@@ -402,7 +402,7 @@
                       <%= if is_nil(@schemas) && match?({:ok, _}, @capabilities) do %>
                         <div class="flex items-center gap-1">
                           <.icon name="hero-exclamation-triangle" class="size-3 text-warning" />
-                          <span class="text-xs text-warning">Schema fetch failed — using defaults</span>
+                          <span class="text-xs text-warning">Schema fetch failed, using defaults</span>
                         </div>
                       <% end %>
                     <% end %>
