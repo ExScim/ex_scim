@@ -5,70 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### ex_scim
-#### Added
-- Optional multi-tenancy support via `ExScim.Scope` struct with `tenant_id` field
-- `ExScim.Tenant.Resolver` behaviour for resolving tenant context from requests
-- Tenant-aware URL generation (`Config.resource_url/3`, `Config.collection_url/2`)
-- Lifecycle hooks for SCIM operations (before/after create, update, delete)
-- Configurable `resource_types` per provider
-- Schema Builder DSL for declarative schema definitions
-- Feature toggles on Router for enabling/disabling endpoints
-- Caller parameter and result tuples in Mappers
-- Filtering on complex SCIM attribute paths
-- Filtering on associated tables in QueryFilter
-
-#### Changed
-- Replaced `ExScim.Auth.Principal` with `ExScim.Scope` (adds `tenant_id`, `metadata`)
-- All Storage adapter callbacks now accept an optional `scope` parameter for tenant isolation
-- Operations modules thread `scope` through to Storage and Mapper calls
-- Full namespace for resource protocol implementations
-
-#### Fixed
-- SCIM filter pipeline
-- MeController plug uses `:show` instead of `:read`
-
-### ex_scim_ecto
-#### Added
-- Configurable `lookup_key` option on storage adapter
-- Configurable `tenant_key` option for discriminator-column multi-tenancy
-- Automatic tenant scoping on all queries when `tenant_key` and `scope.tenant_id` are set
-- Tenant ID injection on resource creation
-- `field_mapping` config option for mapping domain fields to DB columns with value transformation on reads, writes, and filter queries
-
-#### Changed
-- Removed unused lookup functions from storage adapter
-
-#### Fixed
-- Ecto query generation for filters
-
-### ex_scim_phoenix
-#### Added
-- `ExScimPhoenix.Plugs.ScimTenant` plug for tenant resolution in the request pipeline
-
-#### Changed
-- Auth plug now assigns `scim_scope` (was `scim_principal`) to conn
-- All controllers read from `conn.assigns.scim_scope`
-
-#### Fixed
-- Colocated hooks location
-
-### scim_tester (formerly examples/client)
-#### Added
-- Search composer with navbar, dedicated route, and result section
-- Connect button to fetch server capabilities
-- Re-run functionality for individual test cases
-- Integration tests for filter operators
-- Filter list built from schema
-
-#### Changed
-- Moved from `examples/client` to top-level `scim_tester/`
-- Replaced font icons with SVGs in log messages
-- Removed page size elements from filter card
-- No longer shows initial empty search filter row
-
 ## [0.1.0] - Initial Release
 
 ### ex_scim
@@ -78,9 +14,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bulk operations support
 - Schema validation
 - Query filter parsing and adapter pattern
+- Filtering on complex SCIM attribute paths
+- Filtering on associated tables in QueryFilter
 - Storage adapter behaviour with ETS-based implementation
 - Authentication provider adapter pattern
-- Resource scope validation
+- Resource scope validation via `ExScim.Scope` struct with `tenant_id` and `metadata`
+- Optional multi-tenancy support
+- `ExScim.Tenant.Resolver` behaviour for resolving tenant context from requests
+- Tenant-aware URL generation (`Config.resource_url/3`, `Config.collection_url/2`)
+- Lifecycle hooks for SCIM operations (before/after create, update, delete)
+- Configurable `resource_types` per provider
+- Schema Builder DSL for declarative schema definitions
+- Feature toggles on Router for enabling/disabling endpoints
+- Caller parameter and result tuples in Mappers
 - SCIM error response helpers
 - Initial test suite
 
@@ -94,14 +40,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Added
 - Ecto-based storage adapter
 - Query filter adapter for Ecto integration
+- Configurable `lookup_key` option on storage adapter
+- Configurable `tenant_key` option for discriminator-column multi-tenancy
+- Automatic tenant scoping on all queries when `tenant_key` and `scope.tenant_id` are set
+- Tenant ID injection on resource creation
 
 ### ex_scim_phoenix
 #### Added
 - Phoenix integration for SCIM
 - SCIM controllers and routing
-- Authentication plugs and middleware
+- Authentication plugs and middleware (`ExScimPhoenix.Plugs.ScimTenant` for tenant resolution)
+- Scope assignment via `conn.assigns.scim_scope`
 - Request logging
-- Error handling improvements
+- Error handling
 
 ### examples/provider
 #### Added
@@ -109,3 +60,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - User and group management interface
 - Database migrations and seeds
 - Authentication integration
+
+### scim_tester
+#### Added
+- Search composer with navbar, dedicated route, and result section
+- Connect button to fetch server capabilities
+- Re-run functionality for individual test cases
+- Integration tests for filter operators
+- Filter list built from schema
