@@ -18,6 +18,7 @@ defmodule ExScimClient.Model.Operations.PatchOperation do
 
   alias ExScimClient.Deserializer
 
+  @doc false
   def decode(value) do
     value
     |> Deserializer.deserialize(
