@@ -19,13 +19,14 @@ defmodule ExScimClient.Model.UserAttributes.EnterpriseUser do
           :organization => String.t() | nil,
           :division => String.t() | nil,
           :department => String.t() | nil,
-          :manager => ExScimClient.Model.ManagerRef.t() | nil
+          :manager => ExScimClient.Model.References.ManagerRef.t() | nil
         }
 
   alias ExScimClient.Deserializer
 
+  @doc false
   def decode(value) do
     value
-    |> Deserializer.deserialize(:manager, :struct, ExScimClient.Model.ManagerRef)
+    |> Deserializer.deserialize(:manager, :struct, ExScimClient.Model.References.ManagerRef)
   end
 end

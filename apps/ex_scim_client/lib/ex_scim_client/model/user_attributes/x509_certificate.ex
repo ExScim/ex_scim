@@ -12,6 +12,7 @@ defmodule ExScimClient.Model.UserAttributes.X509Certificate do
           :value => String.t() | nil
         }
 
+  @doc false
   def decode(value) do
     value
   end

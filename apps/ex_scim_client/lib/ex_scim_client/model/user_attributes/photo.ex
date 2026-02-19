@@ -16,6 +16,7 @@ defmodule ExScimClient.Model.UserAttributes.Photo do
 
   alias ExScimClient.Deserializer
 
+  @doc false
   def decode(value) do
     value
     |> Deserializer.deserialize(:value, :struct, ExScimClient.Model.Infrastructure.Uri)

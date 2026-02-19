@@ -16,6 +16,7 @@ defmodule ExScimClient.Model.UserAttributes.PhoneNumber do
           :primary => boolean() | nil
         }
 
+  @doc false
   def decode(value) do
     value
   end

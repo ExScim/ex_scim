@@ -18,6 +18,7 @@ defmodule ExScimClient.Model.UserAttributes.Role do
           :primary => boolean() | nil
         }
 
+  @doc false
   def decode(value) do
     value
   end
