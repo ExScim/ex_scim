@@ -24,6 +24,7 @@ defmodule ExScimClient.Model.Infrastructure.AuthenticationScheme do
 
   alias ExScimClient.Deserializer
 
+  @doc false
   def decode(value) do
     value
     |> Deserializer.deserialize(:specUri, :struct, ExScimClient.Model.Infrastructure.Uri)
