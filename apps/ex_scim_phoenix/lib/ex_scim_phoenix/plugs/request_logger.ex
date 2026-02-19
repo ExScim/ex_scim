@@ -1,8 +1,17 @@
 defmodule ExScimPhoenix.Plugs.RequestLogger do
+  @moduledoc """
+  Logs incoming SCIM requests and response times for debugging.
+
+  Logs the HTTP method and path at `:info` level, headers and params at
+  `:debug` level, and response status with duration on completion.
+  """
+
   require Logger
 
+  @doc false
   def init(opts), do: opts
 
+  @doc false
   def call(conn, _opts) do
     start_time = System.monotonic_time()
 

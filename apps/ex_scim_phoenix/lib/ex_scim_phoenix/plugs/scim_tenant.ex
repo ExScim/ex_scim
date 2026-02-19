@@ -22,8 +22,10 @@ defmodule ExScimPhoenix.Plugs.ScimTenant do
   import Plug.Conn
   import Phoenix.Controller
 
+  @doc false
   def init(opts), do: opts
 
+  @doc false
   def call(conn, _opts) do
     case resolver() do
       nil ->
