@@ -1,8 +1,18 @@
 defmodule ExScim.Resources.IdGenerator do
+  @moduledoc """
+  Generates UUIDs for new SCIM resources.
+
+  Produces version 4 (random) UUIDs using cryptographically strong random bytes.
+  """
+
+  @doc "Returns a hex-encoded UUID v4 string (e.g. `\"550e8400-e29b-41d4-a716-446655440000\"`)."
+  @spec generate_uuid() :: String.t()
   def generate_uuid() do
     encode(bin_generate())
   end
 
+  @doc "Returns a raw 16-byte UUID v4 binary."
+  @spec bin_generate() :: <<_::128>>
   def bin_generate() do
     <<u0::48, _::4, u1::12, _::2, u2::62>> = :crypto.strong_rand_bytes(16)
     <<u0::48, 4::4, u1::12, 2::2, u2::62>>
