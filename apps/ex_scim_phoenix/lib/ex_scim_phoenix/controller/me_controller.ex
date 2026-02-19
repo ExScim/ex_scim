@@ -1,6 +1,9 @@
 defmodule ExScimPhoenix.Controller.MeController do
   @moduledoc """
-  SCIM 2.0 /Me controller for authenticated user profile management.
+  Handles the SCIM 2.0 `/Me` endpoint for authenticated user self-management.
+
+  `/Me` is an alias that resolves to the currently authenticated user.
+  The user's identity is determined from `scope.id` set during authentication.
   """
 
   use Phoenix.Controller, formats: [:json]
@@ -21,6 +24,7 @@ defmodule ExScimPhoenix.Controller.MeController do
 
   plug(ExScimPhoenix.Plugs.RequireScopes, [scopes: "scim:me:delete"] when action in [:delete])
 
+  @doc false
   def show(conn, _params) do
     case conn.assigns[:scim_scope] do
       %Scope{id: user_id} = caller ->
@@ -59,6 +63,7 @@ defmodule ExScimPhoenix.Controller.MeController do
     end
   end
 
+  @doc false
   def create(conn, user_params) do
     caller = conn.assigns[:scim_scope]
 
@@ -101,6 +106,7 @@ defmodule ExScimPhoenix.Controller.MeController do
     end
   end
 
+  @doc false
   def update(conn, user_params) do
     caller = conn.assigns[:scim_scope]
     user_id = caller.id
@@ -131,6 +137,7 @@ defmodule ExScimPhoenix.Controller.MeController do
     end
   end
 
+  @doc false
   def patch(conn, patch_params) do
     caller = conn.assigns[:scim_scope]
     user_id = caller.id
@@ -177,6 +184,7 @@ defmodule ExScimPhoenix.Controller.MeController do
     end
   end
 
+  @doc false
   def delete(conn, _params) do
     caller = conn.assigns[:scim_scope]
     user_id = caller.id

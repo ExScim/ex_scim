@@ -1,18 +1,19 @@
 defmodule ExScimPhoenix.Controller.SchemaController do
-  use Phoenix.Controller, formats: [:json]
-
-  alias ExScim.Schema.Repository
-
   @moduledoc """
   SCIM v2.0 Schema endpoint implementation (RFC 7644 Section 4)
   Provides schema definitions for SCIM resources.
   """
+
+  use Phoenix.Controller, formats: [:json]
+
+  alias ExScim.Schema.Repository
 
   plug(
     ExScimPhoenix.Plugs.RequireScopes,
     [scopes: ["scim:read"]] when action in [:index, :show]
   )
 
+  @doc false
   def index(conn, _params) do
     schemas = Repository.list_schemas()
 
@@ -29,6 +30,7 @@ defmodule ExScimPhoenix.Controller.SchemaController do
     |> json(response)
   end
 
+  @doc false
   def show(conn, %{"id" => id}) do
     case Repository.get_schema(id) do
       {:error, :not_found} ->

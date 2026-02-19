@@ -2,8 +2,8 @@ defmodule ExScimPhoenix.Controller.BulkController do
   @moduledoc """
   SCIM 2.0 Bulk Operations Controller implementing RFC 7644 Section 3.7.
 
-  Handles bulk create, update, patch, and delete operations with proper
-  error handling and transaction support.
+  Handles bulk create, update, patch, and delete operations with error
+  handling and configurable failure thresholds.
   """
 
   use Phoenix.Controller, formats: [:json]
@@ -25,6 +25,7 @@ defmodule ExScimPhoenix.Controller.BulkController do
   # Continue on errors by default
   @default_fail_on_errors 0
 
+  @doc false
   def bulk(conn, bulk_request) do
     caller = conn.assigns.scim_scope
 
