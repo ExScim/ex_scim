@@ -90,6 +90,7 @@ defmodule ExScimEcto.StorageAdapter do
   import Ecto.Query
   require Logger
 
+  @doc false
   @impl true
   def get_user(id, scope \\ nil) do
     {_schema, _associations, lookup_key, _filter_mapping, tenant_key, field_mapping} =
@@ -100,6 +101,7 @@ defmodule ExScimEcto.StorageAdapter do
     end
   end
 
+  @doc false
   @impl true
   def list_users(filter_ast, sort_opts, pagination_opts, scope \\ nil) do
     {user_schema, associations, _lookup_key, filter_mapping, tenant_key, field_mapping} =
@@ -146,6 +148,7 @@ defmodule ExScimEcto.StorageAdapter do
       {:error, :query_error}
   end
 
+  @doc false
   @impl true
   def create_user(domain_user, scope \\ nil)
 
@@ -177,6 +180,7 @@ defmodule ExScimEcto.StorageAdapter do
     end
   end
 
+  @doc false
   @impl true
   def update_user(id, domain_user, scope \\ nil) do
     {user_schema, associations, lookup_key, _filter_mapping, tenant_key, field_mapping} =
@@ -198,6 +202,7 @@ defmodule ExScimEcto.StorageAdapter do
     end
   end
 
+  @doc false
   @impl true
   def replace_user(id, domain_user, scope \\ nil) do
     {user_schema, _preloads, lookup_key, _filter_mapping, tenant_key, field_mapping} =
@@ -218,6 +223,7 @@ defmodule ExScimEcto.StorageAdapter do
     end
   end
 
+  @doc false
   @impl true
   def delete_user(id, scope \\ nil) do
     {_schema, _associations, lookup_key, _filter_mapping, tenant_key, _field_mapping} =
@@ -231,6 +237,7 @@ defmodule ExScimEcto.StorageAdapter do
     end
   end
 
+  @doc false
   @impl true
   def user_exists?(id, scope \\ nil) do
     {user_schema, _preloads, lookup_key, _filter_mapping, tenant_key, _field_mapping} =
@@ -243,6 +250,7 @@ defmodule ExScimEcto.StorageAdapter do
   end
 
   # Group operations
+  @doc false
   @impl true
   def get_group(id, scope \\ nil) do
     {_schema, _associations, lookup_key, _filter_mapping, tenant_key, field_mapping} =
@@ -253,6 +261,7 @@ defmodule ExScimEcto.StorageAdapter do
     end
   end
 
+  @doc false
   @impl true
   def list_groups(filter_ast, sort_opts, pagination_opts, scope \\ nil) do
     {group_schema, associations, _lookup_key, filter_mapping, tenant_key, field_mapping} =
@@ -299,6 +308,7 @@ defmodule ExScimEcto.StorageAdapter do
       {:error, :query_error}
   end
 
+  @doc false
   @impl true
   def create_group(domain_group, scope \\ nil)
 
@@ -329,6 +339,7 @@ defmodule ExScimEcto.StorageAdapter do
     end
   end
 
+  @doc false
   @impl true
   def update_group(id, domain_group, scope \\ nil) do
     {group_schema, associations, lookup_key, _filter_mapping, tenant_key, field_mapping} =
@@ -350,6 +361,7 @@ defmodule ExScimEcto.StorageAdapter do
     end
   end
 
+  @doc false
   @impl true
   def replace_group(id, domain_group, scope \\ nil) do
     {group_schema, _preloads, lookup_key, _filter_mapping, tenant_key, field_mapping} =
@@ -370,6 +382,7 @@ defmodule ExScimEcto.StorageAdapter do
     end
   end
 
+  @doc false
   @impl true
   def delete_group(id, scope \\ nil) do
     {_schema, _associations, lookup_key, _filter_mapping, tenant_key, _field_mapping} =
@@ -383,6 +396,7 @@ defmodule ExScimEcto.StorageAdapter do
     end
   end
 
+  @doc false
   @impl true
   def group_exists?(id, scope \\ nil) do
     {group_schema, _preloads, lookup_key, _filter_mapping, tenant_key, _field_mapping} =
