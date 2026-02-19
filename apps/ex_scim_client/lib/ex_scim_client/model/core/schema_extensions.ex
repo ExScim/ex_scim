@@ -14,6 +14,7 @@ defmodule ExScimClient.Model.Core.SchemaExtension do
           :required => boolean() | nil
         }
 
+  @doc false
   def decode(value) do
     value
   end
