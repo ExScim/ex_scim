@@ -1,5 +1,11 @@
 defmodule ExScim.Operations.Groups do
-  @moduledoc "Group management context."
+  @moduledoc """
+  Orchestration layer for SCIM group operations.
+
+  Ties together schema validation, domain mapping, lifecycle hooks, and storage
+  for each SCIM operation (GET, LIST, POST, PUT, PATCH, DELETE). This is the
+  primary entry point used by controllers to execute group operations.
+  """
 
   alias ExScim.Groups.Mapper
   alias ExScim.Groups.Patcher
@@ -10,6 +16,7 @@ defmodule ExScim.Operations.Groups do
   alias ExScim.Schema.Validator
   alias ExScim.Storage
 
+  @doc "Retrieves a group by ID, applying lifecycle hooks and SCIM mapping. Returns `{:ok, scim_group}` or `{:error, reason}`."
   def get_group(id, scope) do
     with :ok <- Lifecycle.before_get(:group, id, scope),
          {:ok, domain_group} <- Storage.get_group(id, scope),
@@ -23,6 +30,12 @@ defmodule ExScim.Operations.Groups do
     end
   end
 
+  @doc """
+  Lists groups as SCIM resources with filtering, sorting, and pagination.
+
+  `opts` may include `:filter`, `:sort_by`, `:sort_order`, `:start_index`, and `:count`.
+  Returns `{:ok, scim_groups, total_count}`.
+  """
   def list_groups_scim(scope, opts \\ %{}) do
     filter_ast = Map.get(opts, :filter)
     sort_opts = build_sort_opts(Map.get(opts, :sort_by), Map.get(opts, :sort_order))
@@ -34,6 +47,13 @@ defmodule ExScim.Operations.Groups do
     end
   end
 
+  @doc """
+  Creates a group from a SCIM JSON payload.
+
+  Validates the schema, maps to a domain struct, generates an ID if needed,
+  runs lifecycle hooks, stores, and maps back to SCIM.
+  Returns `{:ok, scim_group}` or `{:error, reason}`.
+  """
   def create_group_from_scim(scim_data, scope) do
     with {:ok, schema_validated_data} <- Validator.validate_scim_schema(scim_data),
          {:ok, mapped_data} <- Mapper.from_scim(schema_validated_data, scope),
@@ -51,6 +71,12 @@ defmodule ExScim.Operations.Groups do
     end
   end
 
+  @doc """
+  Fully replaces a group (PUT) from a SCIM JSON payload.
+
+  Verifies the group exists, validates, maps, runs lifecycle hooks, and stores.
+  Returns `{:ok, scim_group}` or `{:error, reason}`.
+  """
   def replace_group_from_scim(group_id, scim_data, scope) do
     with {:ok, _existing_group} <- Storage.get_group(group_id, scope),
          {:ok, schema_validated_data} <- Validator.validate_scim_schema(scim_data),
@@ -70,6 +96,13 @@ defmodule ExScim.Operations.Groups do
     end
   end
 
+  @doc """
+  Applies a SCIM PATCH operation to an existing group.
+
+  Fetches the group, validates the patch payload, applies patch operations,
+  runs lifecycle hooks, and stores.
+  Returns `{:ok, scim_group}` or `{:error, reason}`.
+  """
   def patch_group_from_scim(group_id, scim_data, scope) do
     with {:ok, domain_group} <- Storage.get_group(group_id, scope),
          {:ok, schema_validated_data} <- Validator.validate_scim_partial(scim_data, :patch),
@@ -88,6 +121,7 @@ defmodule ExScim.Operations.Groups do
     end
   end
 
+  @doc "Deletes a group by ID with lifecycle hooks. Returns `:ok` or `{:error, reason}`."
   def delete_group(group_id, scope) do
     with :ok <- Lifecycle.before_delete(:group, group_id, scope),
          :ok <- Storage.delete_group(group_id, scope) do

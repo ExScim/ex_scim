@@ -16,6 +16,7 @@ defmodule ExScimPhoenix.ErrorResponse do
   * `scim_type` - SCIM error type atom from ExScim.Error.scim_type()
   * `detail` - human-readable error description
   """
+  @spec send_scim_error(Plug.Conn.t(), atom() | integer(), atom(), String.t()) :: Plug.Conn.t()
   def send_scim_error(conn, status, scim_type, detail) do
     status_code = Plug.Conn.Status.code(status)
     error_response = ExScim.Error.build_error_response(status_code, scim_type, detail)
@@ -30,9 +31,10 @@ defmodule ExScimPhoenix.ErrorResponse do
   Sends a SCIM validation error list response using core ExScim.Error logic.
 
   Each error must be a map with:
-    * `"path"` - the SCIM attribute path  
+    * `"path"` - the SCIM attribute path
     * `"message"` - the error message
   """
+  @spec send_validation_errors(Plug.Conn.t(), [map()]) :: Plug.Conn.t()
   def send_validation_errors(conn, errors) do
     error_response = ExScim.Error.build_validation_error_response(errors)
 
@@ -45,6 +47,7 @@ defmodule ExScimPhoenix.ErrorResponse do
   @doc """
   Sends a SCIM error response based on HTTP status code using core ExScim.Error logic.
   """
+  @spec send_scim_error_from_status(Plug.Conn.t(), atom() | integer()) :: Plug.Conn.t()
   def send_scim_error_from_status(conn, status) do
     status_code = Plug.Conn.Status.code(status)
     error_response = ExScim.Error.build_error_from_status(status_code)

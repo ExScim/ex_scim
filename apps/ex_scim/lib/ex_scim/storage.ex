@@ -35,77 +35,88 @@ defmodule ExScim.Storage do
     adapter().get_user(user_id, scope)
   end
 
+  @doc """
+  Lists users matching the given filter, sort, and pagination options.
+
+  Returns `{:ok, users, total_count}` where `total_count` is the total number
+  of matching users before pagination.
+  """
   @impl true
   def list_users(filter_ast, sort_opts, pagination_opts, scope \\ nil) do
     adapter().list_users(filter_ast, sort_opts, pagination_opts, scope)
   end
 
-  @doc """
-  Creates a new user with the provided data.
-
-  ## Examples
-
-      iex> user_data = %{"userName" => "john", "displayName" => "John Doe"}
-      iex> {:ok, _user} = ExScim.Storage.create_user(user_data)
-      iex> true
-      true
-  """
+  @doc "Creates a new user with the provided data."
   @impl true
   def create_user(user_data, scope \\ nil) do
     adapter().create_user(user_data, scope)
   end
 
+  @doc "Partially updates an existing user. Returns `{:ok, user}` or `{:error, reason}`."
   @impl true
   def update_user(user_id, user_data, scope \\ nil) do
     adapter().update_user(user_id, user_data, scope)
   end
 
+  @doc "Fully replaces an existing user. Returns `{:ok, user}` or `{:error, reason}`."
   @impl true
   def replace_user(user_id, user_data, scope \\ nil) do
     adapter().replace_user(user_id, user_data, scope)
   end
 
+  @doc "Deletes a user by ID. Returns `:ok` or `{:error, reason}`."
   @impl true
   def delete_user(user_id, scope \\ nil) do
     adapter().delete_user(user_id, scope)
   end
 
+  @doc "Returns `true` if a user with the given ID exists."
   @impl true
   def user_exists?(user_id, scope \\ nil) do
     adapter().user_exists?(user_id, scope)
   end
 
-  # Group operations
+  @doc "Retrieves a group by ID. Returns `{:ok, group}` or `{:error, :not_found}`."
   @impl true
   def get_group(group_id, scope \\ nil) do
     adapter().get_group(group_id, scope)
   end
 
+  @doc """
+  Lists groups matching the given filter, sort, and pagination options.
+
+  Returns `{:ok, groups, total_count}`.
+  """
   @impl true
   def list_groups(filter_ast, sort_opts, pagination_opts, scope \\ nil) do
     adapter().list_groups(filter_ast, sort_opts, pagination_opts, scope)
   end
 
+  @doc "Creates a new group. Returns `{:ok, group}` or `{:error, reason}`."
   @impl true
   def create_group(group_data, scope \\ nil) do
     adapter().create_group(group_data, scope)
   end
 
+  @doc "Partially updates an existing group. Returns `{:ok, group}` or `{:error, reason}`."
   @impl true
   def update_group(group_id, group_data, scope \\ nil) do
     adapter().update_group(group_id, group_data, scope)
   end
 
+  @doc "Fully replaces an existing group. Returns `{:ok, group}` or `{:error, reason}`."
   @impl true
   def replace_group(group_id, group_data, scope \\ nil) do
     adapter().replace_group(group_id, group_data, scope)
   end
 
+  @doc "Deletes a group by ID. Returns `:ok` or `{:error, reason}`."
   @impl true
   def delete_group(group_id, scope \\ nil) do
     adapter().delete_group(group_id, scope)
   end
 
+  @doc "Returns `true` if a group with the given ID exists."
   @impl true
   def group_exists?(group_id, scope \\ nil) do
     adapter().group_exists?(group_id, scope)

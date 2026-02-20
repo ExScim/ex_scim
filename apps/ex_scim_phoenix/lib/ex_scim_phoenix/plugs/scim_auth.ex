@@ -1,6 +1,10 @@
 defmodule ExScimPhoenix.Plugs.ScimAuth do
   @moduledoc """
   SCIM authentication plug supporting Bearer tokens and Basic Auth.
+
+  Extracts credentials from the `Authorization` header, delegates validation
+  to the configured `ExScim.Auth.AuthProvider`, and on success sets
+  `:scim_scope` on the connection assigns. Halts with a 401 on failure.
   """
 
   import Plug.Conn
@@ -8,8 +12,10 @@ defmodule ExScimPhoenix.Plugs.ScimAuth do
   alias ExScim.Scope
   alias ExScim.Auth.AuthProvider
 
+  @doc false
   def init(opts), do: opts
 
+  @doc false
   def call(conn, _opts) do
     case get_req_header(conn, "authorization") do
       ["Bearer " <> token] ->

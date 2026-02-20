@@ -18,6 +18,7 @@ defmodule ExScimClient.Model.Bulk.BulkRequest do
 
   alias ExScimClient.Deserializer
 
+  @doc false
   def decode(value) do
     value
     |> Deserializer.deserialize(:Operations, :list, ExScimClient.Model.Bulk.BulkOperation)

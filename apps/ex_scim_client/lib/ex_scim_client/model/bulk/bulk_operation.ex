@@ -20,6 +20,7 @@ defmodule ExScimClient.Model.Bulk.BulkOperation do
           :data => map() | nil
         }
 
+  @doc false
   def decode(value) do
     value
   end

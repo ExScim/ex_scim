@@ -22,6 +22,7 @@ defmodule ExScimClient.Model.UserAttributes.Name do
           :honorificSuffix => String.t() | nil
         }
 
+  @doc false
   def decode(value) do
     value
   end

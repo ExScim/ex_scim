@@ -1,5 +1,15 @@
 defmodule ExScim.Storage.EtsStorage do
-  @moduledoc "ETS-based storage implementation."
+  @moduledoc """
+  ETS-based in-memory storage implementation.
+
+  This is the default storage backend, intended for development and testing.
+  Data is stored in named ETS tables and does not persist across restarts.
+
+  Use `clear_all/0` to reset all stored data (useful in test setup).
+
+  For production use, see `ExScimEcto.StorageAdapter` which provides
+  persistent storage backed by Ecto.
+  """
 
   @behaviour ExScim.Storage.Adapter
 
@@ -15,10 +25,12 @@ defmodule ExScim.Storage.EtsStorage do
 
   ## Client API
 
+  @doc false
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
+  @doc false
   def get_user(id, _scope \\ nil) do
     case :ets.lookup(@table_name, id) do
       [{^id, user_data}] -> {:ok, user_data}
@@ -26,26 +38,32 @@ defmodule ExScim.Storage.EtsStorage do
     end
   end
 
+  @doc false
   def list_users(filter_ast \\ nil, sort_opts \\ [], pagination_opts \\ [], _scope \\ nil) do
     GenServer.call(__MODULE__, {:list_users, filter_ast, sort_opts, pagination_opts})
   end
 
+  @doc false
   def create_user(user_data, _scope \\ nil) do
     GenServer.call(__MODULE__, {:create_user, user_data})
   end
 
+  @doc false
   def update_user(user_id, user_data, _scope \\ nil) do
     GenServer.call(__MODULE__, {:update_user, user_id, user_data})
   end
 
+  @doc false
   def replace_user(user_id, user_data, _scope \\ nil) do
     GenServer.call(__MODULE__, {:replace_user, user_id, user_data})
   end
 
+  @doc false
   def delete_user(user_id, _scope \\ nil) do
     GenServer.call(__MODULE__, {:delete_user, user_id})
   end
 
+  @doc false
   def user_exists?(user_id, _scope \\ nil) do
     case get_user(user_id) do
       {:ok, _} -> true
@@ -53,11 +71,12 @@ defmodule ExScim.Storage.EtsStorage do
     end
   end
 
+  @doc "Removes all users and groups from ETS storage. Useful for testing."
   def clear_all() do
     GenServer.call(__MODULE__, :clear_all)
   end
 
-  # Group operations
+  @doc false
   def get_group(id, _scope \\ nil) do
     case :ets.lookup(@groups_table_name, id) do
       [{^id, group_data}] -> {:ok, group_data}
@@ -65,26 +84,32 @@ defmodule ExScim.Storage.EtsStorage do
     end
   end
 
+  @doc false
   def list_groups(filter_ast \\ nil, sort_opts \\ [], pagination_opts \\ [], _scope \\ nil) do
     GenServer.call(__MODULE__, {:list_groups, filter_ast, sort_opts, pagination_opts})
   end
 
+  @doc false
   def create_group(group_data, _scope \\ nil) do
     GenServer.call(__MODULE__, {:create_group, group_data})
   end
 
+  @doc false
   def update_group(group_id, group_data, _scope \\ nil) do
     GenServer.call(__MODULE__, {:update_group, group_id, group_data})
   end
 
+  @doc false
   def replace_group(group_id, group_data, _scope \\ nil) do
     GenServer.call(__MODULE__, {:replace_group, group_id, group_data})
   end
 
+  @doc false
   def delete_group(group_id, _scope \\ nil) do
     GenServer.call(__MODULE__, {:delete_group, group_id})
   end
 
+  @doc false
   def group_exists?(group_id, _scope \\ nil) do
     case get_group(group_id) do
       {:ok, _} -> true

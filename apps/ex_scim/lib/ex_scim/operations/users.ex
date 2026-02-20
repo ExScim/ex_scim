@@ -1,5 +1,11 @@
 defmodule ExScim.Operations.Users do
-  @moduledoc "User management context."
+  @moduledoc """
+  Orchestration layer for SCIM user operations.
+
+  Ties together schema validation, domain mapping, lifecycle hooks, and storage
+  for each SCIM operation (GET, LIST, POST, PUT, PATCH, DELETE). This is the
+  primary entry point used by controllers to execute user operations.
+  """
 
   alias ExScim.Lifecycle
   alias ExScim.Resources.IdGenerator
@@ -10,6 +16,7 @@ defmodule ExScim.Operations.Users do
   alias ExScim.Users.Mapper
   alias ExScim.Users.Patcher
 
+  @doc "Retrieves a user by ID, applying lifecycle hooks and SCIM mapping. Returns `{:ok, scim_user}` or `{:error, reason}`."
   def get_user(id, scope) do
     with :ok <- Lifecycle.before_get(:user, id, scope),
          {:ok, domain_user} <- Storage.get_user(id, scope),
@@ -23,6 +30,12 @@ defmodule ExScim.Operations.Users do
     end
   end
 
+  @doc """
+  Lists users as SCIM resources with filtering, sorting, and pagination.
+
+  `opts` may include `:filter`, `:sort_by`, `:sort_order`, `:start_index`, and `:count`.
+  Returns `{:ok, scim_users, total_count}`.
+  """
   def list_users_scim(scope, opts \\ %{}) do
     filter_ast = Map.get(opts, :filter)
     sort_opts = build_sort_opts(Map.get(opts, :sort_by), Map.get(opts, :sort_order))
@@ -34,6 +47,13 @@ defmodule ExScim.Operations.Users do
     end
   end
 
+  @doc """
+  Creates a user from a SCIM JSON payload.
+
+  Validates the schema, maps to a domain struct, generates an ID if needed,
+  runs lifecycle hooks, stores, and maps back to SCIM.
+  Returns `{:ok, scim_user}` or `{:error, reason}`.
+  """
   def create_user_from_scim(scim_data, scope) do
     with {:ok, schema_validated_data} <- Validator.validate_scim_schema(scim_data),
          {:ok, mapped_data} <- Mapper.from_scim(schema_validated_data, scope),
@@ -51,6 +71,12 @@ defmodule ExScim.Operations.Users do
     end
   end
 
+  @doc """
+  Fully replaces a user (PUT) from a SCIM JSON payload.
+
+  Verifies the user exists, validates, maps, runs lifecycle hooks, and stores.
+  Returns `{:ok, scim_user}` or `{:error, reason}`.
+  """
   def replace_user_from_scim(user_id, scim_data, scope) do
     with {:ok, _existing_user} <- Storage.get_user(user_id, scope),
          {:ok, schema_validated_data} <- Validator.validate_scim_schema(scim_data),
@@ -69,6 +95,13 @@ defmodule ExScim.Operations.Users do
     end
   end
 
+  @doc """
+  Applies a SCIM PATCH operation to an existing user.
+
+  Fetches the user, validates the patch payload, applies patch operations,
+  runs lifecycle hooks, and stores.
+  Returns `{:ok, scim_user}` or `{:error, reason}`.
+  """
   def patch_user_from_scim(user_id, scim_data, scope) do
     with {:ok, domain_user} <- Storage.get_user(user_id, scope),
          {:ok, schema_validated_data} <- Validator.validate_scim_partial(scim_data, :patch),
@@ -86,6 +119,7 @@ defmodule ExScim.Operations.Users do
     end
   end
 
+  @doc "Deletes a user by ID with lifecycle hooks. Returns `:ok` or `{:error, reason}`."
   def delete_user(user_id, scope) do
     with :ok <- Lifecycle.before_delete(:user, user_id, scope),
          :ok <- Storage.delete_user(user_id, scope) do

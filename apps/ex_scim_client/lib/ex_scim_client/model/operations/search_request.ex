@@ -26,6 +26,7 @@ defmodule ExScimClient.Model.Operations.SearchRequest do
           :count => integer() | nil
         }
 
+  @doc false
   def decode(value) do
     value
   end

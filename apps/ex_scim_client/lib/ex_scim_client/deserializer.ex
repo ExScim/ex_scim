@@ -1,12 +1,14 @@
 defmodule ExScimClient.Deserializer do
   @moduledoc """
-  Helper functions for deserializing responses into models
+  Helper functions for deserializing responses into models.
   """
 
+  @doc "Decodes a JSON string into a map."
   def json_decode(json) do
     JSON.decode(json)
   end
 
+  @doc "Decodes a JSON string into a struct of the given module."
   def json_decode(json, module) do
     json
     |> json_decode()

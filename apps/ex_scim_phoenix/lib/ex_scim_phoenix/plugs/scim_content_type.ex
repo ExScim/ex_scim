@@ -1,11 +1,15 @@
 defmodule ExScimPhoenix.Plugs.ScimContentType do
   @moduledoc """
-  Handles SCIM-specific content type negotiation per RFC 7644
+  Sets the response content type to `application/scim+json` per RFC 7644.
+
+  Also assigns `:scim_version` to `"2.0"` on the connection for downstream use.
   """
   import Plug.Conn
 
+  @doc false
   def init(default), do: default
 
+  @doc false
   def call(conn, _default) do
     conn
     |> put_resp_content_type("application/scim+json", "utf-8")

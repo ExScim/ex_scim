@@ -8,6 +8,7 @@ defmodule ExScimClient.Model.Operations.PatchOperationValue do
 
   @type t :: %__MODULE__{}
 
+  @doc false
   def decode(value) do
     value
   end

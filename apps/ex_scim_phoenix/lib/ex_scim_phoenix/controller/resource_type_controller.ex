@@ -1,6 +1,4 @@
 defmodule ExScimPhoenix.Controller.ResourceTypeController do
-  use Phoenix.Controller, formats: [:json]
-
   @moduledoc """
   SCIM v2.0 ResourceType endpoint implementation (RFC 7644 Section 4)
   Provides metadata about the resource types supported by the service provider.
@@ -9,6 +7,9 @@ defmodule ExScimPhoenix.Controller.ResourceTypeController do
   to User (with Enterprise extension) and Group when not explicitly configured.
   """
 
+  use Phoenix.Controller, formats: [:json]
+
+  @doc false
   def index(conn, _params) do
     resource_types = build_resource_types()
 
@@ -25,6 +26,7 @@ defmodule ExScimPhoenix.Controller.ResourceTypeController do
     |> json(response)
   end
 
+  @doc false
   def show(conn, %{"id" => id}) do
     resource_types = build_resource_types()
 
@@ -67,9 +69,13 @@ defmodule ExScimPhoenix.Controller.ResourceTypeController do
       }
 
       case rt.schema_extensions do
-        [] -> resource_type
+        [] ->
+          resource_type
+
         extensions ->
-          Map.put(resource_type, "schemaExtensions",
+          Map.put(
+            resource_type,
+            "schemaExtensions",
             Enum.map(extensions, fn ext ->
               %{"schema" => ext.schema, "required" => ext.required}
             end)

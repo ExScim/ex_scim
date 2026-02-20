@@ -11,6 +11,9 @@ defmodule ExScim.Operations.Bulk do
   @default_max_operations 1000
   @default_max_payload_size 1_048_576
 
+  @typedoc """
+  A parsed bulk operation with its method, bulk ID, resource path, data, and optional version.
+  """
   @type bulk_operation :: %{
           method: binary(),
           bulkId: binary(),
@@ -19,6 +22,10 @@ defmodule ExScim.Operations.Bulk do
           version: binary() | nil
         }
 
+  @typedoc """
+  A bulk response operation containing the result status, optional location,
+  version, and response body for each processed operation.
+  """
   @type bulk_response_operation :: %{
           method: binary(),
           bulkId: binary(),

@@ -20,6 +20,7 @@ defmodule ExScimClient.Model.Operations.ListResponse do
           :Resources => [map()] | nil
         }
 
+  @doc false
   def decode(value) do
     value
   end

@@ -44,33 +44,66 @@ defmodule ExScim.Lifecycle.Adapter do
       end
   """
 
+  @typedoc "The type of resource being operated on: `:user` or `:group`."
   @type resource_type :: :user | :group
+
+  @typedoc "The domain-level resource data (struct or map) being processed."
   @type resource_data :: term()
+
+  @typedoc "The unique identifier of the resource."
   @type resource_id :: binary()
+
+  @typedoc "The SCIM JSON response map after mapping from the domain struct."
   @type scim_response :: map()
+
+  @typedoc "The authenticated caller scope for the current request."
   @type caller :: ExScim.Scope.t()
+
+  @typedoc "The SCIM operation type that triggered the hook."
   @type operation :: :create | :replace | :patch | :delete | :get
 
   # Before hooks: can modify data or reject
+
+  @doc "Fires before a resource is created. Return `{:ok, data}` to proceed or `{:error, reason}` to reject."
   @callback before_create(resource_type(), resource_data(), caller()) ::
               {:ok, resource_data()} | {:error, term()}
+
+  @doc "Fires before a resource is replaced (PUT). Return `{:ok, data}` to proceed or `{:error, reason}` to reject."
   @callback before_replace(resource_type(), resource_id(), resource_data(), caller()) ::
               {:ok, resource_data()} | {:error, term()}
+
+  @doc "Fires before a resource is patched. Return `{:ok, data}` to proceed or `{:error, reason}` to reject."
   @callback before_patch(resource_type(), resource_id(), resource_data(), caller()) ::
               {:ok, resource_data()} | {:error, term()}
+
+  @doc "Fires before a resource is deleted. Return `:ok` to proceed or `{:error, reason}` to reject."
   @callback before_delete(resource_type(), resource_id(), caller()) ::
               :ok | {:error, term()}
+
+  @doc "Fires before a resource is retrieved. Return `:ok` to proceed or `{:error, reason}` to reject."
   @callback before_get(resource_type(), resource_id(), caller()) ::
               :ok | {:error, term()}
 
   # After hooks: observe only
+
+  @doc "Fires after a resource is successfully created. Observe-only."
   @callback after_create(resource_type(), scim_response(), caller()) :: :ok
+
+  @doc "Fires after a resource is successfully replaced. Observe-only."
   @callback after_replace(resource_type(), scim_response(), caller()) :: :ok
+
+  @doc "Fires after a resource is successfully patched. Observe-only."
   @callback after_patch(resource_type(), scim_response(), caller()) :: :ok
+
+  @doc "Fires after a resource is successfully deleted. Observe-only."
   @callback after_delete(resource_type(), resource_id(), caller()) :: :ok
+
+  @doc "Fires after a resource is successfully retrieved. Observe-only."
   @callback after_get(resource_type(), scim_response(), caller()) :: :ok
 
   # Error hook: observe only
+
+  @doc "Fires when an operation fails. Observe-only; intended for logging or metrics."
   @callback on_error(operation(), resource_type(), term(), caller()) :: :ok
 
   @optional_callbacks [

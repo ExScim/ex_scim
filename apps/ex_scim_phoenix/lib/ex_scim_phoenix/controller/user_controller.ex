@@ -1,6 +1,9 @@
 defmodule ExScimPhoenix.Controller.UserController do
   @moduledoc """
-  SCIM 2.0 User Controller with configurable storage and user types.
+  Handles SCIM 2.0 User endpoints (`/Users`).
+
+  Implements the full SCIM user lifecycle per RFC 7644:
+  GET (show/index), POST (create), PUT (update), PATCH (patch), DELETE (delete).
   """
 
   use Phoenix.Controller, formats: [:json]
@@ -26,6 +29,7 @@ defmodule ExScimPhoenix.Controller.UserController do
   @default_count 20
   @max_count 200
 
+  @doc false
   def index(conn, params) do
     caller = conn.assigns.scim_scope
 
@@ -55,6 +59,7 @@ defmodule ExScimPhoenix.Controller.UserController do
     end
   end
 
+  @doc false
   def show(conn, %{"id" => id}) do
     caller = conn.assigns.scim_scope
 
@@ -74,6 +79,7 @@ defmodule ExScimPhoenix.Controller.UserController do
     end
   end
 
+  @doc false
   def create(conn, user_params) do
     caller = conn.assigns.scim_scope
 
@@ -100,6 +106,7 @@ defmodule ExScimPhoenix.Controller.UserController do
     end
   end
 
+  @doc false
   def update(conn, %{"id" => id} = user_params) do
     caller = conn.assigns.scim_scope
     # Remove id from params to avoid conflicts
@@ -129,6 +136,7 @@ defmodule ExScimPhoenix.Controller.UserController do
     end
   end
 
+  @doc false
   def patch(conn, %{"id" => id} = patch_params) do
     caller = conn.assigns.scim_scope
     # Remove id from params to avoid conflicts
@@ -174,6 +182,7 @@ defmodule ExScimPhoenix.Controller.UserController do
     end
   end
 
+  @doc false
   def delete(conn, %{"id" => id}) do
     caller = conn.assigns.scim_scope
 

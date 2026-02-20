@@ -20,6 +20,7 @@ defmodule ExScimClient.Model.References.MemberRef do
 
   alias ExScimClient.Deserializer
 
+  @doc false
   def decode(value) do
     value
     |> Deserializer.deserialize(:"$ref", :struct, ExScimClient.Model.Infrastructure.Uri)

@@ -24,6 +24,7 @@ defmodule ExScimClient.Model.Core.Group do
 
   alias ExScimClient.Deserializer
 
+  @doc false
   def decode(value) do
     value
     |> Deserializer.deserialize(:meta, :struct, ExScimClient.Model.Infrastructure.Meta)

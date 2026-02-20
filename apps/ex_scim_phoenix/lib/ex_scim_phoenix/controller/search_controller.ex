@@ -1,6 +1,9 @@
 defmodule ExScimPhoenix.Controller.SearchController do
   @moduledoc """
-  SCIM 2.0 controller which handles POST-based queries.
+  Handles SCIM 2.0 POST-based `.search` endpoints per RFC 7644 Section 3.4.3.
+
+  Supports both resource-specific search (e.g. `POST /Users/.search`) and
+  cross-resource search (`POST /.search`) that combines Users and Groups.
   """
 
   use Phoenix.Controller, formats: [:json]
@@ -18,13 +21,15 @@ defmodule ExScimPhoenix.Controller.SearchController do
   @scim_search_request_schema "urn:ietf:params:scim:api:messages:2.0:SearchRequest"
   @scim_list_response_schema "urn:ietf:params:scim:api:messages:2.0:ListResponse"
 
+  @doc "Performs a resource-specific search (e.g. POST /Users/.search)."
   def search(conn, search_params) do
     resource_type = determine_resource_type(conn.request_path)
     scope = conn.assigns[:scim_scope]
 
     with {:ok, validated_params} <- validate_search_request(search_params),
          {:ok, parsed_params} <- parse_search_params(validated_params),
-         {:ok, resources, total_results} <- search_by_resource_type(resource_type, scope, parsed_params) do
+         {:ok, resources, total_results} <-
+           search_by_resource_type(resource_type, scope, parsed_params) do
       response = %{
         "schemas" => [@scim_list_response_schema],
         "totalResults" => total_results,
@@ -43,6 +48,7 @@ defmodule ExScimPhoenix.Controller.SearchController do
     end
   end
 
+  @doc "Searches across all resource types (POST /.search)."
   def search_all(conn, search_params) do
     scope = conn.assigns[:scim_scope]
 

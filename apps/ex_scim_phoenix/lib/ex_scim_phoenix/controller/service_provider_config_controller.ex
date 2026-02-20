@@ -1,13 +1,18 @@
 defmodule ExScimPhoenix.Controller.ServiceProviderConfigController do
+  @moduledoc """
+  Serves the SCIM ServiceProviderConfig endpoint (RFC 7643 Section 5).
+
+  Returns server capabilities including supported operations, authentication
+  schemes, and feature flags like bulk, filter, and patch support.
+  """
+
   use Phoenix.Controller, formats: [:json]
 
   alias ExScim.Config
 
   plug(ExScimPhoenix.Plugs.RequireScopes, [scopes: ["scim:read"]] when action in [:show])
 
-  @doc """
-  GET /scim/v2/ServiceProviderConfig - RFC 7643 Section 5
-  """
+  @doc false
   def show(conn, _params) do
     bulk_supported = Config.bulk_supported()
     filter_supported = Config.filter_supported()

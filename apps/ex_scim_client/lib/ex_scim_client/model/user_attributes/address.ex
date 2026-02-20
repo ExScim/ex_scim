@@ -26,6 +26,7 @@ defmodule ExScimClient.Model.UserAttributes.Address do
           :primary => boolean() | nil
         }
 
+  @doc false
   def decode(value) do
     value
   end

@@ -1,11 +1,47 @@
 defmodule ExScimEcto.QueryFilter do
   @moduledoc """
-  Query filter adapter for building queries from SCIM filter ASTs.
+  Translates SCIM filter ASTs into Ecto `WHERE` clauses.
+
+  ## Supported SCIM filter operators
+
+  - **Comparison:** `eq`, `ne`, `gt`, `ge`, `lt`, `le`
+  - **String matching:** `co` (contains), `sw` (starts with), `ew` (ends with)
+  - **Presence:** `pr` (is not null)
+  - **Logical:** `and`, `or`, `not`
+
+  ## Options
+
+  The 3-arity `apply_filter/3` accepts an `opts` keyword list:
+
+  - `:filter_mapping` - maps SCIM attribute paths to Ecto field atoms or
+    `{:assoc, assoc_name, field_name}` tuples for association filtering
+  - `:field_mapping` - maps domain field atoms to `{db_field, to_fn, from_fn}`
+    tuples for value transformation during filtering
+  - `:schema_fields` - list of valid schema field atoms, used to reject
+    unknown filter attributes
+
+  ## Field resolution
+
+  SCIM attribute paths are resolved in this order:
+
+  1. Explicit `:filter_mapping` entry (if configured)
+  2. Auto-derived by converting camelCase to snake_case and looking up the atom
+  3. If the resolved field has a `:field_mapping` entry, the filter value is
+     transformed through `to_fn` before comparison
+
+  When filtering on associations, LEFT JOINs are added automatically and
+  results are made `DISTINCT` to avoid duplicate root records.
   """
 
   @behaviour ExScim.QueryFilter.Adapter
   import Ecto.Query
 
+  @doc """
+  Applies a SCIM filter AST to an Ecto query.
+
+  Returns the query unchanged if `filter_ast` is `nil`.
+  Returns a modified `Ecto.Query` with `WHERE` clauses added.
+  """
   @impl true
   def apply_filter(query, nil), do: query
 
@@ -14,6 +50,14 @@ defmodule ExScimEcto.QueryFilter do
     from(q in query, where: ^dynamic)
   end
 
+  @doc """
+  Applies a SCIM filter AST to an Ecto query with options.
+
+  Supports `filter_mapping`, `field_mapping`, and `schema_fields` options.
+  Automatically adds LEFT JOINs for association-based filters.
+
+  Returns a modified `Ecto.Query` with `WHERE` clauses added.
+  """
   def apply_filter(query, nil, _opts), do: query
 
   def apply_filter(query, ast, opts) do
