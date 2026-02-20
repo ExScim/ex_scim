@@ -1,7 +1,14 @@
 defmodule ExScimClient.Resources.ResourceTypes do
+  @moduledoc """
+  Fetches SCIM ResourceType definitions from a server.
+
+  Used for discovering what resource types the server supports.
+  """
+
   alias ExScimClient.Client
   alias ExScimClient.Request
 
+  @doc "Lists all ResourceType definitions from the server."
   def list(%Client{} = client, opts \\ []) do
     filter = Keyword.get(opts, :filter)
     sorting = Keyword.get(opts, :sorting)
@@ -20,6 +27,7 @@ defmodule ExScimClient.Resources.ResourceTypes do
     |> Request.run()
   end
 
+  @doc "Retrieves a single ResourceType definition by name."
   def get(%Client{} = client, resource_type_name, opts \\ [])
       when is_binary(resource_type_name) do
     attributes = Keyword.get(opts, :attributes)
