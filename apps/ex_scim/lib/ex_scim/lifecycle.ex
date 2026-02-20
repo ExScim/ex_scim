@@ -18,6 +18,7 @@ defmodule ExScim.Lifecycle do
 
   # Before hooks: fail closed
 
+  @doc "Fires before a resource is created. Returns `{:ok, data}` to proceed or `{:error, reason}` to halt."
   def before_create(resource_type, resource_data, caller) do
     case adapter() do
       nil -> {:ok, resource_data}
@@ -25,6 +26,7 @@ defmodule ExScim.Lifecycle do
     end
   end
 
+  @doc "Fires before a resource is replaced (PUT). Returns `{:ok, data}` to proceed or `{:error, reason}` to halt."
   def before_replace(resource_type, resource_id, resource_data, caller) do
     case adapter() do
       nil ->
@@ -37,6 +39,7 @@ defmodule ExScim.Lifecycle do
     end
   end
 
+  @doc "Fires before a resource is patched. Returns `{:ok, data}` to proceed or `{:error, reason}` to halt."
   def before_patch(resource_type, resource_id, resource_data, caller) do
     case adapter() do
       nil ->
@@ -47,6 +50,7 @@ defmodule ExScim.Lifecycle do
     end
   end
 
+  @doc "Fires before a resource is deleted. Returns `:ok` to proceed or `{:error, reason}` to halt."
   def before_delete(resource_type, resource_id, caller) do
     case adapter() do
       nil -> :ok
@@ -54,6 +58,7 @@ defmodule ExScim.Lifecycle do
     end
   end
 
+  @doc "Fires before a resource is retrieved. Returns `:ok` to proceed or `{:error, reason}` to halt."
   def before_get(resource_type, resource_id, caller) do
     case adapter() do
       nil -> :ok
@@ -63,6 +68,7 @@ defmodule ExScim.Lifecycle do
 
   # After hooks: fail open
 
+  @doc "Fires after a resource is successfully created. Observe-only; crashes are logged and swallowed."
   def after_create(resource_type, scim_response, caller) do
     safe_after(fn ->
       case adapter() do
@@ -72,6 +78,7 @@ defmodule ExScim.Lifecycle do
     end)
   end
 
+  @doc "Fires after a resource is successfully replaced. Observe-only."
   def after_replace(resource_type, scim_response, caller) do
     safe_after(fn ->
       case adapter() do
@@ -81,6 +88,7 @@ defmodule ExScim.Lifecycle do
     end)
   end
 
+  @doc "Fires after a resource is successfully patched. Observe-only."
   def after_patch(resource_type, scim_response, caller) do
     safe_after(fn ->
       case adapter() do
@@ -90,6 +98,7 @@ defmodule ExScim.Lifecycle do
     end)
   end
 
+  @doc "Fires after a resource is successfully deleted. Observe-only."
   def after_delete(resource_type, resource_id, caller) do
     safe_after(fn ->
       case adapter() do
@@ -99,6 +108,7 @@ defmodule ExScim.Lifecycle do
     end)
   end
 
+  @doc "Fires after a resource is successfully retrieved. Observe-only."
   def after_get(resource_type, scim_response, caller) do
     safe_after(fn ->
       case adapter() do
@@ -110,6 +120,7 @@ defmodule ExScim.Lifecycle do
 
   # Error hook: fail open
 
+  @doc "Fires when an operation fails. Observe-only; intended for logging or metrics."
   def on_error(operation, resource_type, error, caller) do
     safe_after(fn ->
       case adapter() do
@@ -119,6 +130,7 @@ defmodule ExScim.Lifecycle do
     end)
   end
 
+  @doc "Returns the configured lifecycle adapter module, or `nil` if none is configured."
   def adapter do
     Application.get_env(:ex_scim, :lifecycle_adapter)
   end
