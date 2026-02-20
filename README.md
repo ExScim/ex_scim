@@ -137,6 +137,7 @@ When using the `{Schema, opts}` tuple form, available sub-options are:
 - `:lookup_key` - primary key field (default `:id`)
 - `:filter_mapping` - map of SCIM attribute paths to DB columns (default `%{}`)
 - `:tenant_key` - column used for multi-tenant scoping (default `nil`)
+- `:field_mapping` - map of domain fields to `{db_field, to_storage_fn, from_storage_fn}` tuples for value transformation (default `%{}`)
 
 ```elixir
 config :ex_scim,
@@ -147,7 +148,12 @@ config :ex_scim,
      preload: [:roles],
      lookup_key: :uuid,
      filter_mapping: %{"emails.value" => :email},
-     tenant_key: :organization_id},
+     tenant_key: :organization_id,
+     field_mapping: %{
+       active: {:status,
+         fn true -> "active"; false -> "inactive" end,
+         fn "active" -> true; _ -> false end}
+     }},
   group_model:
     {MyApp.Groups.Group,
      preload: [:members],
