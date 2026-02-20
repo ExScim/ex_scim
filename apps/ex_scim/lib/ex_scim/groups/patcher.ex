@@ -3,9 +3,17 @@ defmodule ExScim.Groups.Patcher do
   Applies SCIM PatchOp operations to group data (maps or structs).
   Handles multiple ops, optional path, simple/complex values, and removals.
   Supports both plain maps and domain structs with automatic key conversion.
-  Filtering & schema validation can be layered in later.
   """
 
+  @doc """
+  Applies SCIM PatchOp operations to a group.
+
+  The `patch_ops` map must contain an `"Operations"` key with a non-empty list
+  of operations. Each operation must have an `"op"` field (`"add"`, `"replace"`,
+  or `"remove"`) and optionally `"path"` and `"value"` fields.
+
+  Returns `{:ok, updated_group}` or `{:error, reason}`.
+  """
   @spec patch(map() | struct(), map()) :: {:ok, map() | struct()} | {:error, term()}
   def patch(group_data, %{"Operations" => operations}) when is_list(operations) do
     if length(operations) == 0 do
