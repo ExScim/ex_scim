@@ -1,17 +1,30 @@
 defmodule ExScim.Groups.Mapper.Adapter do
   @moduledoc "Group resource mapper behaviour."
 
+  @typedoc "A domain group struct or map."
   @type group_struct :: struct() | map()
+
+  @typedoc "A SCIM group resource as a JSON-decoded map."
   @type scim_data :: map()
 
+  @doc "Converts a SCIM JSON map into a domain group struct."
   @callback from_scim(scim_data(), ExScim.Scope.t()) ::
               {:ok, group_struct()} | {:error, atom() | term()}
+
+  @doc "Converts a domain group struct into a SCIM JSON map."
   @callback to_scim(group_struct(), ExScim.Scope.t(), keyword()) ::
               {:ok, scim_data()} | {:error, atom() | term()}
 
+  @doc "Extracts the creation timestamp from a group struct. Used for SCIM `meta.created`."
   @callback get_meta_created(group_struct()) :: DateTime.t() | nil
+
+  @doc "Extracts the last-modified timestamp from a group struct. Used for SCIM `meta.lastModified`."
   @callback get_meta_last_modified(group_struct()) :: DateTime.t() | nil
+
+  @doc "Computes an ETag version string from a group struct. Used for SCIM `meta.version`."
   @callback get_meta_version(group_struct()) :: String.t() | nil
+
+  @doc "Builds the complete SCIM `meta` object for a group. Receives the struct and options like `:location` and `:resource_type`."
   @callback format_meta(group_struct(), keyword()) :: map()
 
   @optional_callbacks [
