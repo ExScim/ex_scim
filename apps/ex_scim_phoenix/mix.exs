@@ -14,7 +14,15 @@ defmodule ExScimPhoenix.MixProject do
       deps: deps(),
       description: "Phoenix integration for ExScim SCIM 2.0",
       package: package(),
-      source_url: @source_url
+      source_url: @source_url,
+      docs: docs()
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      extras: ["README.md"]
     ]
   end
 

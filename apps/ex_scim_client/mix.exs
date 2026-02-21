@@ -13,7 +13,15 @@ defmodule ExScimClient.MixProject do
       deps: deps(),
       description: "HTTP client for consuming SCIM 2.0 APIs",
       package: package(),
-      source_url: @source_url
+      source_url: @source_url,
+      docs: docs()
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      extras: ["README.md"]
     ]
   end
 

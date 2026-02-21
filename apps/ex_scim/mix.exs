@@ -14,7 +14,15 @@ defmodule ExScim.MixProject do
       deps: deps(),
       description: "SCIM 2.0 protocol implementation for Elixir",
       package: package(),
-      source_url: @source_url
+      source_url: @source_url,
+      docs: docs()
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      extras: ["README.md", "guides/configuration.md"]
     ]
   end
 
@@ -32,7 +40,7 @@ defmodule ExScim.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url},
-      files: ["lib", "mix.exs", "README.md"]
+      files: ["lib", "guides", "mix.exs", "README.md"]
     ]
   end
 

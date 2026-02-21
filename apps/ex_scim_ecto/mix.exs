@@ -13,7 +13,15 @@ defmodule ExScimEcto.MixProject do
       deps: deps(),
       description: "Ecto-based storage adapter for ExScim",
       package: package(),
-      source_url: @source_url
+      source_url: @source_url,
+      docs: docs()
+    ]
+  end
+
+  defp docs do
+    [
+      main: "readme",
+      extras: ["README.md"]
     ]
   end
 
