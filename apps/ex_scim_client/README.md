@@ -2,6 +2,18 @@
 
 HTTP client for consuming SCIM APIs.
 
+## Installation
+
+Add `ex_scim_client` to your dependencies:
+
+```elixir
+def deps do
+  [
+    {:ex_scim_client, "~> 0.1"}
+  ]
+end
+```
+
 ## Usage
 
 Create a client and perform operations:
