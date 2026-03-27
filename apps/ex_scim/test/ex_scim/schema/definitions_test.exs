@@ -157,7 +157,9 @@ defmodule ExScim.Schema.DefinitionsTest do
 
     test "complete schema matches when normalized" do
       dsl_schema = EnterpriseUser.to_map() |> normalize() |> sort_attributes()
-      legacy_schema = LegacyRepository.get_enterprise_user_schema() |> normalize() |> sort_attributes()
+
+      legacy_schema =
+        LegacyRepository.get_enterprise_user_schema() |> normalize() |> sort_attributes()
 
       assert dsl_schema == legacy_schema
     end

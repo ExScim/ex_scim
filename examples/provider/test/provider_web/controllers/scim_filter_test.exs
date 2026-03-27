@@ -9,9 +9,30 @@ defmodule ProviderWeb.ScimFilterTest do
       |> put_req_header("authorization", "Bearer valid_user_token")
       |> put_req_header("content-type", "application/scim+json")
 
-    alice = user_fixture(%{user_name: "alice", display_name: "Alice Smith", given_name: "Alice", family_name: "Smith", email: "alice@example.com"})
-    user_fixture(%{user_name: "bob", display_name: "Bob Jones", given_name: "Bob", family_name: "Jones", email: "bob@example.org"})
-    user_fixture(%{user_name: "carmen98", display_name: "Carmen Ortiz", given_name: "Carmen", family_name: "Ortiz", email: "carmen@example.com"})
+    alice =
+      user_fixture(%{
+        user_name: "alice",
+        display_name: "Alice Smith",
+        given_name: "Alice",
+        family_name: "Smith",
+        email: "alice@example.com"
+      })
+
+    user_fixture(%{
+      user_name: "bob",
+      display_name: "Bob Jones",
+      given_name: "Bob",
+      family_name: "Jones",
+      email: "bob@example.org"
+    })
+
+    user_fixture(%{
+      user_name: "carmen98",
+      display_name: "Carmen Ortiz",
+      given_name: "Carmen",
+      family_name: "Ortiz",
+      email: "carmen@example.com"
+    })
 
     %{conn: conn, alice: alice}
   end

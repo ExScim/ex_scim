@@ -35,7 +35,7 @@ defmodule ExScim.Error do
 
   @typedoc """
   Standard SCIM error response structure.
-  
+
   Contains string keys: "schemas", "status", "scimType", "detail", "errors".
   Generic String.t() keys used due to Elixir type system limitations.
   """
@@ -49,7 +49,7 @@ defmodule ExScim.Error do
 
   @typedoc """
   Individual validation error for multi-error responses.
-  
+
   Contains string keys: "path", "message".
   """
   @type validation_error :: %{

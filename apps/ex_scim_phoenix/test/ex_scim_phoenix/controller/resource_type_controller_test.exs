@@ -59,7 +59,10 @@ defmodule ExScimPhoenix.Controller.ResourceTypeControllerTest do
       assert length(user_rt["schemaExtensions"]) == 1
 
       enterprise_ext = List.first(user_rt["schemaExtensions"])
-      assert enterprise_ext["schema"] == "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+
+      assert enterprise_ext["schema"] ==
+               "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+
       assert enterprise_ext["required"] == false
 
       # Verify meta object

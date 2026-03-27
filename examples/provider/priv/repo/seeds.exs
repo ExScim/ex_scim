@@ -124,22 +124,22 @@ insert_resource = fn mapper, attrs ->
     |> Map.put(:meta_created, now)
     |> Map.put(:meta_last_modified, now)
 
-    changeset = mapper.(resource_attrs)
-    Repo.insert!(changeset)  
-  end
+  changeset = mapper.(resource_attrs)
+  Repo.insert!(changeset)
+end
 
 user_changeset = fn attrs ->
-    if Map.has_key?(attrs, :id) do
-      # Use the provided ID
-      %User{id: attrs.id}
-      |> User.changeset(Map.delete(attrs, :id))
-    else
-      # Let Ecto generate the ID
-      %User{}
-      |> User.changeset(attrs)
-    end
+  if Map.has_key?(attrs, :id) do
+    # Use the provided ID
+    %User{id: attrs.id}
+    |> User.changeset(Map.delete(attrs, :id))
+  else
+    # Let Ecto generate the ID
+    %User{}
+    |> User.changeset(attrs)
+  end
 end
-  
+
 group_changeset = fn attrs -> Group.changeset(%Group{}, attrs) end
 
 Enum.each(users, &insert_resource.(user_changeset, &1))

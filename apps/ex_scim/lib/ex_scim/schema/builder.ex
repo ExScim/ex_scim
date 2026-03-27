@@ -211,7 +211,13 @@ defmodule ExScim.Schema.Builder do
       @__current_sub_attributes []
       unquote(block)
       sub_attrs = @__current_sub_attributes |> Enum.reverse()
-      @schema_attributes Helpers.build_attribute(unquote(name), unquote(type), unquote(opts), sub_attrs)
+
+      @schema_attributes Helpers.build_attribute(
+                           unquote(name),
+                           unquote(type),
+                           unquote(opts),
+                           sub_attrs
+                         )
     end
   end
 

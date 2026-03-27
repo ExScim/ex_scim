@@ -25,6 +25,7 @@ defmodule ExScim.Test.StorageTestHelper do
           {:error, {:already_started, _pid}} -> :ok
           error -> error
         end
+
       _pid ->
         :ok
     end
@@ -44,6 +45,7 @@ defmodule ExScim.Test.StorageTestHelper do
           nil -> :ok
           _pid -> ExScim.Storage.EtsStorage.clear_all()
         end
+
       _ ->
         :ok
     end

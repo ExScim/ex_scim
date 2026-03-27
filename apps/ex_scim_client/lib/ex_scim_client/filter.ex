@@ -73,6 +73,7 @@ defmodule ExScimClient.Filter do
   """
   @spec not_equal(%__MODULE__{}, String.t(), String.t()) :: %__MODULE__{}
   def not_equal(filter, attribute, value), do: put_expression(filter, {:ne, attribute, value})
+
   @doc """
   Adds a contains comparison to the filter.
 
@@ -85,6 +86,7 @@ defmodule ExScimClient.Filter do
   """
   @spec contains(%__MODULE__{}, String.t(), String.t()) :: %__MODULE__{}
   def contains(filter, attribute, value), do: put_expression(filter, {:co, attribute, value})
+
   @doc """
   Adds a starts-with comparison to the filter.
 
@@ -208,6 +210,7 @@ defmodule ExScimClient.Filter do
   """
   @spec not1(%__MODULE__{}, %__MODULE__{}) :: %__MODULE__{}
   def not1(filter1, filter2), do: combine_expressions(:not, filter1, filter2)
+
   @doc """
   Combines two filters with an OR operator.
 

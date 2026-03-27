@@ -68,7 +68,7 @@ defmodule Provider.MixProject do
       {:bandit, "~> 1.5"},
       {:ex_scim, path: "../../apps/ex_scim", override: true},
       {:ex_scim_phoenix, path: "../../apps/ex_scim_phoenix"},
-      {:ex_scim_ecto, path: "../../apps/ex_scim_ecto"},
+      {:ex_scim_ecto, path: "../../apps/ex_scim_ecto"}
     ]
   end
 

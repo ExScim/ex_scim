@@ -1,16 +1,16 @@
 defmodule ExScim.Users.User do
   @moduledoc """
   User struct representing a SCIM User resource.
-  
+
   Provides the core data structure for user identity information following 
   SCIM 2.0 User schema (RFC 7643 Section 4.1).
-  
+
   ## Required Fields
-  
+
   - `:user_name` - Unique identifier for the user, typically an email or username
-  
+
   ## Examples
-  
+
       iex> user = ExScim.Users.User.new("john.doe@example.com")
       iex> user.user_name
       "john.doe@example.com"
@@ -63,14 +63,14 @@ defmodule ExScim.Users.User do
 
   @doc """
   Creates a new User struct with the given user_name and optional fields.
-  
+
   ## Parameters
-  
+
   - `user_name` - Required unique identifier for the user
   - `opts` - Keyword list of optional user attributes
-  
+
   ## Examples
-  
+
       iex> user = ExScim.Users.User.new("john@example.com")
       iex> user.user_name
       "john@example.com"

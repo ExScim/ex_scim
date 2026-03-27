@@ -169,15 +169,9 @@ defmodule ExScimEcto.StorageAdapter do
       |> inject_tenant(tenant_key, scope)
       |> apply_field_mapping_to_storage(field_mapping)
 
-    changeset =
-      user_schema.changeset(user_schema.__struct__(), attrs)
-
-    with {:ok, user} <- repo().insert(changeset) do
-      {:ok,
-       user
-       |> maybe_preload(repo(), associations)
-       |> apply_field_mapping_from_storage(field_mapping)}
-    end
+    user_schema.changeset(user_schema.__struct__(), attrs)
+    |> repo().insert()
+    |> handle_changeset_result(repo(), associations, field_mapping)
   end
 
   @doc false
@@ -193,12 +187,9 @@ defmodule ExScimEcto.StorageAdapter do
         |> convert_preloaded_structs(associations)
         |> apply_field_mapping_to_storage(field_mapping)
 
-      changeset = user_schema.changeset(existing, attrs)
-
-      case repo().update(changeset) do
-        {:ok, updated} -> {:ok, apply_field_mapping_from_storage(updated, field_mapping)}
-        error -> error
-      end
+      user_schema.changeset(existing, attrs)
+      |> repo().update()
+      |> handle_changeset_result(repo(), [], field_mapping)
     end
   end
 
@@ -214,12 +205,9 @@ defmodule ExScimEcto.StorageAdapter do
         |> Map.from_struct()
         |> apply_field_mapping_to_storage(field_mapping)
 
-      changeset = user_schema.changeset(existing, attrs)
-
-      case repo().update(changeset) do
-        {:ok, updated} -> {:ok, apply_field_mapping_from_storage(updated, field_mapping)}
-        error -> error
-      end
+      user_schema.changeset(existing, attrs)
+      |> repo().update()
+      |> handle_changeset_result(repo(), [], field_mapping)
     end
   end
 
@@ -329,14 +317,9 @@ defmodule ExScimEcto.StorageAdapter do
       |> inject_tenant(tenant_key, scope)
       |> apply_field_mapping_to_storage(field_mapping)
 
-    changeset = group_schema.changeset(group_schema.__struct__(), attrs)
-
-    with {:ok, group} <- repo().insert(changeset) do
-      {:ok,
-       group
-       |> maybe_preload(repo(), associations)
-       |> apply_field_mapping_from_storage(field_mapping)}
-    end
+    group_schema.changeset(group_schema.__struct__(), attrs)
+    |> repo().insert()
+    |> handle_changeset_result(repo(), associations, field_mapping)
   end
 
   @doc false
@@ -352,12 +335,9 @@ defmodule ExScimEcto.StorageAdapter do
         |> convert_preloaded_structs(associations)
         |> apply_field_mapping_to_storage(field_mapping)
 
-      changeset = group_schema.changeset(existing, attrs)
-
-      case repo().update(changeset) do
-        {:ok, updated} -> {:ok, apply_field_mapping_from_storage(updated, field_mapping)}
-        error -> error
-      end
+      group_schema.changeset(existing, attrs)
+      |> repo().update()
+      |> handle_changeset_result(repo(), [], field_mapping)
     end
   end
 
@@ -373,12 +353,9 @@ defmodule ExScimEcto.StorageAdapter do
         |> Map.from_struct()
         |> apply_field_mapping_to_storage(field_mapping)
 
-      changeset = group_schema.changeset(existing, attrs)
-
-      case repo().update(changeset) do
-        {:ok, updated} -> {:ok, apply_field_mapping_from_storage(updated, field_mapping)}
-        error -> error
-      end
+      group_schema.changeset(existing, attrs)
+      |> repo().update()
+      |> handle_changeset_result(repo(), [], field_mapping)
     end
   end
 
@@ -550,5 +527,28 @@ defmodule ExScimEcto.StorageAdapter do
     query
     |> offset(^(start_index - 1))
     |> limit(^count)
+  end
+
+  defp handle_changeset_result({:ok, record}, repo, associations, field_mapping) do
+    {:ok,
+     record
+     |> maybe_preload(repo, associations)
+     |> apply_field_mapping_from_storage(field_mapping)}
+  end
+
+  defp handle_changeset_result({:error, %Ecto.Changeset{} = changeset}, _repo, _assoc, _mapping) do
+    {:error, changeset_to_validation_errors(changeset)}
+  end
+
+  defp changeset_to_validation_errors(changeset) do
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {msg, opts} ->
+      Enum.reduce(opts, msg, fn {key, value}, acc ->
+        String.replace(acc, "%{#{key}}", to_string(value))
+      end)
+    end)
+    |> Enum.flat_map(fn {field, messages} ->
+      Enum.map(messages, &%{"path" => to_string(field), "message" => &1})
+    end)
   end
 end

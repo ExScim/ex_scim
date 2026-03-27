@@ -55,7 +55,7 @@ defmodule ExScimPhoenix.Router do
   - `POST /.search` - Cross-resource search
   - `POST /Bulk` - Bulk operations
   """
-  
+
   defmacro __using__(opts) do
     user_controller =
       Keyword.get(opts, :user_controller, ExScimPhoenix.Controller.UserController)
