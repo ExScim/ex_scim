@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2]
+
+### ex_scim_ecto
+#### Fixed
+- Return HTTP 400 with SCIM validation errors instead of 500 when Ecto changeset validation fails
+
+### scim_tester
+#### Added
+- Schema-aware payload generation for create, update, patch, and bulk tests
+
+### examples/provider
+#### Fixed
+- Relax User changeset to only require SCIM-mandatory fields (`userName`, `externalId`, `active`), matching RFC 7643
+
 ## [0.1.1] - 2026-02-20
 
 ### ex_scim_ecto
