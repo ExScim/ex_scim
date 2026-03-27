@@ -7,15 +7,15 @@ defmodule Provider.Accounts.User do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   schema "users" do
-    field :user_name, :string
-    field :given_name, :string
-    field :family_name, :string
-    field :display_name, :string
-    field :email, :string
-    field :active, :boolean, default: true
-    field :external_id, :string
-    field :meta_created, :utc_datetime_usec
-    field :meta_last_modified, :utc_datetime_usec
+    field(:user_name, :string)
+    field(:given_name, :string)
+    field(:family_name, :string)
+    field(:display_name, :string)
+    field(:email, :string)
+    field(:active, :boolean, default: true)
+    field(:external_id, :string)
+    field(:meta_created, :utc_datetime_usec)
+    field(:meta_last_modified, :utc_datetime_usec)
 
     timestamps(type: :utc_datetime_usec)
   end
@@ -34,7 +34,7 @@ defmodule Provider.Accounts.User do
       :meta_created,
       :meta_last_modified
     ])
-    |> validate_required([:external_id, :user_name, :given_name, :family_name, :email, :active])
+    |> validate_required([:external_id, :user_name, :active])
     |> unique_constraint(:external_id, name: "users_external_id_index")
   end
 end
