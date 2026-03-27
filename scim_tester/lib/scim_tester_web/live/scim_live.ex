@@ -291,7 +291,12 @@ defmodule ScimTesterWeb.ScimLive do
   def handle_event("add_filter_row", _params, socket) do
     new_row = %{
       id: socket.assigns.search_next_row_id,
-      attribute: default_attr(socket.assigns.search_resource_type, socket.assigns.schemas, socket.assigns.enabled_schemas),
+      attribute:
+        default_attr(
+          socket.assigns.search_resource_type,
+          socket.assigns.schemas,
+          socket.assigns.enabled_schemas
+        ),
       operator: "eq",
       value: ""
     }
@@ -405,10 +410,16 @@ defmodule ScimTesterWeb.ScimLive do
   def handle_info(:run_tests, socket) do
     live_view_pid = self()
     enabled_tests = socket.assigns.enabled_tests
+    user_schema = get_user_schema(socket.assigns.schemas)
 
     {:ok, task_pid} =
       Task.start(fn ->
-        ScimTesting.run_all_tests(live_view_pid, socket.assigns.client, enabled_tests)
+        ScimTesting.run_all_tests(
+          live_view_pid,
+          socket.assigns.client,
+          enabled_tests,
+          user_schema
+        )
       end)
 
     socket = assign(socket, test_task_pid: task_pid)
@@ -417,13 +428,15 @@ defmodule ScimTesterWeb.ScimLive do
 
   def handle_info({:retry_test, test_id}, socket) do
     live_view_pid = self()
+    user_schema = get_user_schema(socket.assigns.schemas)
 
     Task.start(fn ->
       ScimTesting.run_single_test(
         live_view_pid,
         socket.assigns.client,
         test_id,
-        socket.assigns.created_user_id
+        socket.assigns.created_user_id,
+        user_schema
       )
     end)
 
@@ -510,7 +523,12 @@ defmodule ScimTesterWeb.ScimLive do
         socket.assigns.enabled_schemas
       end
 
-    {:noreply, assign(socket, schemas: schemas_map, schemas_loading: false, enabled_schemas: enabled_schemas)}
+    {:noreply,
+     assign(socket,
+       schemas: schemas_map,
+       schemas_loading: false,
+       enabled_schemas: enabled_schemas
+     )}
   end
 
   def handle_info({:schemas_fetched, {:error, _reason}}, socket) do
@@ -583,7 +601,8 @@ defmodule ScimTesterWeb.ScimLive do
                 groups
 
               schema ->
-                groups ++ [{"Enterprise User", schema_to_attributes(schema, @enterprise_user_schema_id)}]
+                groups ++
+                  [{"Enterprise User", schema_to_attributes(schema, @enterprise_user_schema_id)}]
             end
           else
             groups
@@ -653,13 +672,13 @@ defmodule ScimTesterWeb.ScimLive do
     if primary, do: Map.get(primary, "value", "-"), else: "-"
   end
 
-  attr :test_def, :map, required: true
-  attr :test_result, :map, required: true
-  attr :is_enabled, :boolean, required: true
-  attr :client, :any
-  attr :running, :boolean
-  attr :current_test, :atom
-  attr :capabilities, :any
+  attr(:test_def, :map, required: true)
+  attr(:test_result, :map, required: true)
+  attr(:is_enabled, :boolean, required: true)
+  attr(:client, :any)
+  attr(:running, :boolean)
+  attr(:current_test, :atom)
+  attr(:capabilities, :any)
 
   defp test_card(assigns) do
     ~H"""
@@ -975,6 +994,9 @@ defmodule ScimTesterWeb.ScimLive do
         :ok
     end
   end
+
+  defp get_user_schema(nil), do: nil
+  defp get_user_schema(schemas), do: Map.get(schemas, @user_schema_id)
 
   defp default_attr(resource_type, schemas, enabled_schemas) do
     case attribute_options(resource_type, schemas, enabled_schemas) do

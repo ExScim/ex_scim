@@ -391,7 +391,9 @@
                           <input
                             type="checkbox"
                             class="checkbox checkbox-xs checkbox-primary"
-                            checked={MapSet.member?(@enabled_schemas, enterprise_user_schema_id())}
+                            checked={
+                              MapSet.member?(@enabled_schemas, enterprise_user_schema_id())
+                            }
                             phx-click="toggle_schema"
                             phx-value-schema-id={enterprise_user_schema_id()}
                           />
@@ -402,7 +404,9 @@
                       <%= if is_nil(@schemas) && match?({:ok, _}, @capabilities) do %>
                         <div class="flex items-center gap-1">
                           <.icon name="hero-exclamation-triangle" class="size-3 text-warning" />
-                          <span class="text-xs text-warning">Schema fetch failed, using defaults</span>
+                          <span class="text-xs text-warning">
+                            Schema fetch failed, using defaults
+                          </span>
                         </div>
                       <% end %>
                     <% end %>
@@ -522,7 +526,9 @@
                   <% request_preview = build_request_preview(assigns) %>
                   <div class="bg-base-200 rounded-lg p-3">
                     <div class="text-xs opacity-70 mb-1">Request Preview</div>
-                    <code class="text-sm font-mono text-primary break-all"><%= request_preview %></code>
+                    <code class="text-sm font-mono text-primary break-all">
+                      {request_preview}
+                    </code>
                   </div>
                 <% end %>
               </div>

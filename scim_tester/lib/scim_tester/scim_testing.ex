@@ -11,6 +11,7 @@ defmodule ScimTester.ScimTesting do
   alias ExScimClient.Resources.Bulk
   alias ExScimClient.Resources.Schemas
   alias ExScimClient.Resources.ResourceTypes
+  alias ScimTester.SchemaPayload
 
   @first_names ["John", "Jane", "Alice", "Bob", "Charlie", "Diana", "Eve", "Frank"]
   @last_names ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis"]
@@ -212,13 +213,13 @@ defmodule ScimTester.ScimTesting do
   This function orchestrates the entire test suite, sending progress messages
   to the provided process ID. Only tests in the enabled_tests set will be executed.
   """
-  def run_all_tests(pid, client, enabled_tests) do
+  def run_all_tests(pid, client, enabled_tests, user_schema \\ nil) do
     send(pid, {:log_message, "Starting SCIM Integration Tests", :start})
 
     # Only run create_user if enabled
     user_id =
       if MapSet.member?(enabled_tests, :create_user) do
-        case run_single_test(pid, client, :create_user, nil) do
+        case run_single_test(pid, client, :create_user, nil, user_schema) do
           {:ok, id} -> id
           _ -> nil
         end
@@ -231,7 +232,7 @@ defmodule ScimTester.ScimTesting do
     # User-dependent tests (only if enabled AND user_id exists)
     Enum.each([:get_user, :update_user, :patch_user], fn test ->
       if MapSet.member?(enabled_tests, test) and user_id do
-        run_single_test(pid, client, test, user_id)
+        run_single_test(pid, client, test, user_id, user_schema)
       end
     end)
 
@@ -240,14 +241,14 @@ defmodule ScimTester.ScimTesting do
       [:list_users, :me_operations, :schema_operations, :resource_types, :bulk_operations],
       fn test ->
         if MapSet.member?(enabled_tests, test) do
-          run_single_test(pid, client, test, user_id)
+          run_single_test(pid, client, test, user_id, user_schema)
         end
       end
     )
 
     # Delete user last (only if enabled AND user_id exists)
     if MapSet.member?(enabled_tests, :delete_user) and user_id do
-      run_single_test(pid, client, :delete_user, user_id)
+      run_single_test(pid, client, :delete_user, user_id, user_schema)
     end
 
     send(pid, {:tests_completed})
@@ -256,14 +257,14 @@ defmodule ScimTester.ScimTesting do
   @doc """
   Runs a single test and reports progress to the provided process ID.
   """
-  def run_single_test(pid, client, test_id, user_id) do
+  def run_single_test(pid, client, test_id, user_id, user_schema \\ nil) do
     send(pid, {:test_started, test_id})
     send(pid, {:log_message, "Running #{test_id}...", :running})
 
     # Validate client first
     case validate_client(client) do
       :ok ->
-        result = execute_test_safely(test_id, client, user_id)
+        result = execute_test_safely(test_id, client, user_id, user_schema)
         handle_test_result(pid, test_id, result)
 
       {:error, reason} ->
@@ -278,19 +279,19 @@ defmodule ScimTester.ScimTesting do
 
   defp validate_client(_client), do: :ok
 
-  defp execute_test_safely(test_id, client, user_id) do
+  defp execute_test_safely(test_id, client, user_id, user_schema) do
     try do
       case test_id do
-        :create_user -> test_create_user(client)
+        :create_user -> test_create_user(client, user_schema)
         :get_user -> test_get_user(client, user_id)
-        :update_user -> test_update_user(client, user_id)
-        :patch_user -> test_patch_user(client, user_id)
+        :update_user -> test_update_user(client, user_id, user_schema)
+        :patch_user -> test_patch_user(client, user_id, user_schema)
         :list_users -> test_list_users(client)
         :delete_user -> test_delete_user(client, user_id)
         :me_operations -> test_me_operations(client)
         :schema_operations -> test_schema_operations(client)
         :resource_types -> test_resource_type_operations(client)
-        :bulk_operations -> test_bulk_operations(client)
+        :bulk_operations -> test_bulk_operations(client, user_schema)
       end
     rescue
       error -> {:error, "Connection failed: #{inspect(error)}"}
@@ -324,8 +325,11 @@ defmodule ScimTester.ScimTesting do
   defp format_error(reason) when is_binary(reason), do: reason
   defp format_error(reason), do: inspect(reason)
 
-  defp test_create_user(client) do
-    user_data = generate_random_user()
+  defp test_create_user(client, user_schema) do
+    user_data =
+      if user_schema,
+        do: SchemaPayload.generate_create_payload(user_schema),
+        else: generate_random_user()
 
     case Users.create(client, user_data) do
       {:ok, %{"id" => user_id} = _response} -> {:ok, user_id}
@@ -337,10 +341,14 @@ defmodule ScimTester.ScimTesting do
     Users.get(client, user_id)
   end
 
-  defp test_update_user(client, user_id) do
+  defp test_update_user(client, user_id, user_schema) do
     case Users.get(client, user_id) do
       {:ok, existing_user} ->
-        updated_data = generate_random_user_update(existing_user)
+        updated_data =
+          if user_schema,
+            do: SchemaPayload.generate_update_payload(user_schema, existing_user),
+            else: generate_random_user_update(existing_user)
+
         Users.update(client, user_id, updated_data)
 
       error ->
@@ -348,14 +356,19 @@ defmodule ScimTester.ScimTesting do
     end
   end
 
-  defp test_patch_user(client, user_id) do
-    patch_operations = [
-      %{
-        "op" => "replace",
-        "path" => "title",
-        "value" => "Senior #{generate_random_job_title()}"
-      }
-    ]
+  defp test_patch_user(client, user_id, user_schema) do
+    patch_operations =
+      if user_schema do
+        SchemaPayload.generate_patch_operations(user_schema)
+      else
+        [
+          %{
+            "op" => "replace",
+            "path" => "title",
+            "value" => "Senior #{generate_random_job_title()}"
+          }
+        ]
+      end
 
     Users.patch(client, user_id, patch_operations)
   end
@@ -380,9 +393,16 @@ defmodule ScimTester.ScimTesting do
     ResourceTypes.list(client)
   end
 
-  defp test_bulk_operations(client) do
-    user1_data = generate_random_user()
-    user2_data = generate_random_user()
+  defp test_bulk_operations(client, user_schema) do
+    user1_data =
+      if user_schema,
+        do: SchemaPayload.generate_create_payload(user_schema),
+        else: generate_random_user()
+
+    user2_data =
+      if user_schema,
+        do: SchemaPayload.generate_create_payload(user_schema),
+        else: generate_random_user()
 
     bulk_operations = [
       %{

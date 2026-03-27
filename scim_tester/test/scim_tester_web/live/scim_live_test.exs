@@ -162,7 +162,9 @@ defmodule ScimTesterWeb.ScimLiveTest do
       {:ok, view, _html} = live(conn, ~p"/search")
       connect_client(view)
 
-      view |> element("select[name=resource_type]") |> render_change(%{"resource_type" => "Groups"})
+      view
+      |> element("select[name=resource_type]")
+      |> render_change(%{"resource_type" => "Groups"})
 
       html = render(view)
       assert html =~ "/Groups"
@@ -172,7 +174,10 @@ defmodule ScimTesterWeb.ScimLiveTest do
       {:ok, view, _html} = live(conn, ~p"/search")
       connect_client(view)
 
-      view |> element("select[name=resource_type]") |> render_change(%{"resource_type" => "Groups"})
+      view
+      |> element("select[name=resource_type]")
+      |> render_change(%{"resource_type" => "Groups"})
+
       view |> element("button", "Add Filter") |> render_click()
 
       html = render(view)
@@ -185,8 +190,13 @@ defmodule ScimTesterWeb.ScimLiveTest do
       connect_client(view)
 
       # Set some state then switch type
-      view |> element("select[name=resource_type]") |> render_change(%{"resource_type" => "Groups"})
-      view |> element("select[name=resource_type]") |> render_change(%{"resource_type" => "Users"})
+      view
+      |> element("select[name=resource_type]")
+      |> render_change(%{"resource_type" => "Groups"})
+
+      view
+      |> element("select[name=resource_type]")
+      |> render_change(%{"resource_type" => "Users"})
 
       refute has_element?(view, ".card-title", "Results")
     end
