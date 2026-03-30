@@ -7,20 +7,9 @@ defmodule ScimTester.SchemaPayload do
   attributes, with type-based fallbacks for unknown ones.
   """
 
-  @user_schema_uri "urn:ietf:params:scim:schemas:core:2.0:User"
+  alias ScimTester.DataGenConfig
 
-  @first_names ["John", "Jane", "Alice", "Bob", "Charlie", "Diana", "Eve", "Frank"]
-  @last_names ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis"]
-  @job_titles [
-    "Software Engineer",
-    "Product Manager",
-    "Data Analyst",
-    "Designer",
-    "Developer",
-    "Consultant",
-    "Architect",
-    "Manager"
-  ]
+  @user_schema_uri "urn:ietf:params:scim:schemas:core:2.0:User"
 
   @server_controlled_names MapSet.new(["id", "meta", "groups"])
 
@@ -30,7 +19,7 @@ defmodule ScimTester.SchemaPayload do
   Includes all required writable attributes plus a random subset of optional ones.
   Always includes `userName` and the `schemas` key.
   """
-  def generate_create_payload(schema) do
+  def generate_create_payload(schema, config \\ DataGenConfig.default()) do
     schema_uri = Map.get(schema, "id", @user_schema_uri)
     {required, optional} = schema |> writable_attributes() |> partition_attributes()
 
@@ -43,7 +32,7 @@ defmodule ScimTester.SchemaPayload do
     payload =
       Enum.reduce(attrs, %{}, fn attr, acc ->
         name = Map.get(attr, "name")
-        value = generate_value(attr)
+        value = generate_value(attr, config)
 
         if value != :skip do
           put_attribute(acc, name, value)
@@ -60,7 +49,7 @@ defmodule ScimTester.SchemaPayload do
 
   Preserves `userName` and skips immutable attributes.
   """
-  def generate_update_payload(schema, existing_user) do
+  def generate_update_payload(schema, existing_user, config \\ DataGenConfig.default()) do
     mutable_attrs =
       schema
       |> writable_attributes()
@@ -75,7 +64,7 @@ defmodule ScimTester.SchemaPayload do
 
     Enum.reduce(selected, existing_user, fn attr, acc ->
       name = Map.get(attr, "name")
-      value = generate_value(attr)
+      value = generate_value(attr, config)
 
       if value != :skip do
         put_attribute(acc, name, value)
@@ -91,7 +80,7 @@ defmodule ScimTester.SchemaPayload do
   Picks one non-required, mutable, non-complex, non-userName attribute and returns
   a replace operation for it. Falls back through increasingly relaxed criteria.
   """
-  def generate_patch_operations(schema) do
+  def generate_patch_operations(schema, config \\ DataGenConfig.default()) do
     attrs = writable_attributes(schema)
 
     # Ideal: non-required, mutable, non-complex, non-userName
@@ -115,11 +104,17 @@ defmodule ScimTester.SchemaPayload do
     case candidate do
       nil ->
         # Absolute fallback
-        [%{"op" => "replace", "path" => "title", "value" => "Senior #{Enum.random(@job_titles)}"}]
+        [
+          %{
+            "op" => "replace",
+            "path" => "title",
+            "value" => "Senior #{DataGenConfig.random_job_title(config)}"
+          }
+        ]
 
       attr ->
         name = Map.get(attr, "name")
-        value = generate_value(attr)
+        value = generate_value(attr, config)
         value = if value == :skip, do: "test_#{random_string(8)}", else: value
 
         # For complex/multi-valued attrs, use the generated value directly
@@ -178,7 +173,7 @@ defmodule ScimTester.SchemaPayload do
 
   # --- Value Generation ---
 
-  defp generate_value(attr) do
+  defp generate_value(attr, config) do
     name = Map.get(attr, "name", "")
     type = Map.get(attr, "type", "string")
     multi_valued = Map.get(attr, "multiValued", false)
@@ -190,83 +185,99 @@ defmodule ScimTester.SchemaPayload do
         value = Enum.random(canonical_values)
         if multi_valued, do: [value], else: value
 
-      value = name_heuristic(name) ->
+      value = name_heuristic(name, config) ->
         value
 
       true ->
-        type_fallback(type, multi_valued, sub_attributes)
+        type_fallback(type, multi_valued, sub_attributes, config)
     end
   end
 
   # Name-based heuristics for known SCIM attribute names
-  defp name_heuristic("userName"), do: "test_user_#{random_string(8)}"
+  defp name_heuristic("userName", _config), do: "test_user_#{random_string(8)}"
 
-  defp name_heuristic("displayName") do
-    "#{Enum.random(@first_names)} #{Enum.random(@last_names)}"
+  defp name_heuristic("displayName", config) do
+    "#{DataGenConfig.random_first_name(config)} #{DataGenConfig.random_last_name(config)}"
   end
 
-  defp name_heuristic("givenName"), do: Enum.random(@first_names)
-  defp name_heuristic("familyName"), do: Enum.random(@last_names)
-  defp name_heuristic("title"), do: Enum.random(@job_titles)
-  defp name_heuristic("active"), do: true
-  defp name_heuristic("userType"), do: Enum.random(["Employee", "Contractor", "Intern"])
-  defp name_heuristic("preferredLanguage"), do: Enum.random(["en", "de", "fr", "es"])
-  defp name_heuristic("locale"), do: Enum.random(["en-US", "de-DE", "fr-FR"])
-  defp name_heuristic("timezone"), do: Enum.random(["America/New_York", "Europe/Berlin", "UTC"])
-  defp name_heuristic("nickName"), do: "nick_#{random_string(5)}"
-  defp name_heuristic("profileUrl"), do: "https://example.com/users/#{random_string(8)}"
-  defp name_heuristic("externalId"), do: "ext_#{random_string(10)}"
+  defp name_heuristic("givenName", config), do: DataGenConfig.random_first_name(config)
+  defp name_heuristic("familyName", config), do: DataGenConfig.random_last_name(config)
+  defp name_heuristic("title", config), do: DataGenConfig.random_job_title(config)
+  defp name_heuristic("active", _config), do: true
+  defp name_heuristic("userType", _config), do: Enum.random(["Employee", "Contractor", "Intern"])
+  defp name_heuristic("preferredLanguage", _config), do: Enum.random(["en", "de", "fr", "es"])
+  defp name_heuristic("locale", _config), do: Enum.random(["en-US", "de-DE", "fr-FR"])
 
-  defp name_heuristic("name") do
+  defp name_heuristic("timezone", _config),
+    do: Enum.random(["America/New_York", "Europe/Berlin", "UTC"])
+
+  defp name_heuristic("nickName", _config), do: "nick_#{random_string(5)}"
+
+  defp name_heuristic("profileUrl", config),
+    do: DataGenConfig.random_url(config, "users/#{random_string(8)}")
+
+  defp name_heuristic("externalId", _config), do: "ext_#{random_string(10)}"
+
+  defp name_heuristic("name", config) do
     %{
-      "givenName" => Enum.random(@first_names),
-      "familyName" => Enum.random(@last_names)
+      "givenName" => DataGenConfig.random_first_name(config),
+      "familyName" => DataGenConfig.random_last_name(config)
     }
   end
 
-  defp name_heuristic("emails") do
-    id = random_string(8)
-    [%{"value" => "test_#{id}@example.com", "type" => "work", "primary" => true}]
+  defp name_heuristic("emails", config) do
+    first = DataGenConfig.random_first_name(config)
+    last = DataGenConfig.random_last_name(config)
+    email = DataGenConfig.random_email(config, first, last)
+    [%{"value" => email, "type" => "work", "primary" => true}]
   end
 
-  defp name_heuristic("phoneNumbers") do
+  defp name_heuristic("phoneNumbers", _config) do
     suffix = Enum.random(1000..9999)
     [%{"value" => "+1-555-#{suffix}", "type" => "work"}]
   end
 
-  defp name_heuristic("addresses") do
+  defp name_heuristic("addresses", _config) do
     [%{"streetAddress" => "123 Test St", "locality" => "Testville", "type" => "work"}]
   end
 
-  defp name_heuristic("photos") do
-    [%{"value" => "https://example.com/photos/#{random_string(8)}.jpg", "type" => "photo"}]
+  defp name_heuristic("photos", config) do
+    [
+      %{
+        "value" => DataGenConfig.random_url(config, "photos/#{random_string(8)}.jpg"),
+        "type" => "photo"
+      }
+    ]
   end
 
-  defp name_heuristic("ims") do
+  defp name_heuristic("ims", _config) do
     [%{"value" => "test_#{random_string(6)}", "type" => "aim"}]
   end
 
-  defp name_heuristic("roles") do
+  defp name_heuristic("roles", _config) do
     [%{"value" => "user"}]
   end
 
-  defp name_heuristic("entitlements") do
+  defp name_heuristic("entitlements", _config) do
     [%{"value" => "basic"}]
   end
 
-  defp name_heuristic("x509Certificates"), do: :skip
+  defp name_heuristic("x509Certificates", _config), do: :skip
 
-  defp name_heuristic(_name), do: nil
+  defp name_heuristic(_name, _config), do: nil
 
   # Type-based fallback for unknown attributes
-  defp type_fallback("string", _multi, _sub), do: "test_#{random_string(8)}"
-  defp type_fallback("boolean", _multi, _sub), do: true
-  defp type_fallback("integer", _multi, _sub), do: Enum.random(1..100)
-  defp type_fallback("decimal", _multi, _sub), do: Enum.random(1..100) / 10.0
-  defp type_fallback("dateTime", _multi, _sub), do: DateTime.utc_now() |> DateTime.to_iso8601()
-  defp type_fallback("binary", _multi, _sub), do: :skip
+  defp type_fallback("string", _multi, _sub, _config), do: "test_#{random_string(8)}"
+  defp type_fallback("boolean", _multi, _sub, _config), do: true
+  defp type_fallback("integer", _multi, _sub, _config), do: Enum.random(1..100)
+  defp type_fallback("decimal", _multi, _sub, _config), do: Enum.random(1..100) / 10.0
 
-  defp type_fallback("complex", multi, sub_attributes) do
+  defp type_fallback("dateTime", _multi, _sub, _config),
+    do: DateTime.utc_now() |> DateTime.to_iso8601()
+
+  defp type_fallback("binary", _multi, _sub, _config), do: :skip
+
+  defp type_fallback("complex", multi, sub_attributes, config) do
     sub_map =
       sub_attributes
       |> Enum.reject(fn sub ->
@@ -276,7 +287,7 @@ defmodule ScimTester.SchemaPayload do
       end)
       |> Enum.reduce(%{}, fn sub, acc ->
         sub_name = Map.get(sub, "name", "")
-        sub_value = generate_value(sub)
+        sub_value = generate_value(sub, config)
 
         if sub_value != :skip do
           Map.put(acc, sub_name, sub_value)
@@ -288,7 +299,7 @@ defmodule ScimTester.SchemaPayload do
     if multi, do: [sub_map], else: sub_map
   end
 
-  defp type_fallback(_unknown, _multi, _sub), do: "test_#{random_string(8)}"
+  defp type_fallback(_unknown, _multi, _sub, _config), do: "test_#{random_string(8)}"
 
   defp random_string(length) do
     chars = "abcdefghijklmnopqrstuvwxyz0123456789"

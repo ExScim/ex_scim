@@ -9,7 +9,7 @@
         <div class="card bg-base-100 shadow-xl border border-base-300">
           <div class="card-body">
             <h2 class="card-title mb-4">
-              <.icon name="hero-cog-6-tooth" class="w-5 h-5 mr-2" />Configuration
+              Connection
             </h2>
 
             <form
@@ -42,12 +42,12 @@
               />
             </form>
 
-            <div class="mt-4">
+            <div class="mt-4 flex gap-2">
               <button
                 phx-click="connect"
                 disabled={is_nil(@client) or @running or @capabilities == :loading}
                 class={[
-                  "btn btn-block",
+                  "btn flex-1",
                   if(is_nil(@client) or @running or @capabilities == :loading,
                     do: "btn-disabled",
                     else: "btn-primary"
@@ -61,6 +61,13 @@
                     do: "Reconnect",
                     else: "Connect"}
                 <% end %>
+              </button>
+              <button
+                phx-click="open_settings"
+                class="btn btn-ghost btn-square"
+                title="Data generation settings"
+              >
+                <.icon name="hero-adjustments-horizontal" class="size-5" />
               </button>
             </div>
 
@@ -687,6 +694,145 @@
       </div>
 
       <div class="modal-backdrop" phx-click="close_modal"></div>
+    </div>
+  <% end %>
+  <!-- Settings Modal -->
+  <%= if @settings_open do %>
+    <div class="modal modal-open" phx-window-keydown="close_settings" phx-key="Escape">
+      <div class="modal-box max-w-lg">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-bold text-lg">
+            <.icon name="hero-adjustments-horizontal" class="size-5 inline mr-1" />
+            Data Generation Settings
+          </h3>
+          <button phx-click="close_settings" class="btn btn-sm btn-circle btn-ghost">✕</button>
+        </div>
+
+        <form phx-change="update_data_gen" phx-debounce="300" id="data-gen-form">
+          <!-- Mode Selector -->
+          <div class="mb-4">
+            <label class="label"><span class="label-text font-semibold">Generation Mode</span></label>
+            <div class="flex flex-col gap-2">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="mode"
+                  value="default"
+                  class="radio radio-primary radio-sm"
+                  checked={@data_gen_config.mode == :default}
+                />
+                <div>
+                  <span class="text-sm font-medium">Default</span>
+                  <span class="text-xs opacity-70 block">Fixed lists, example.com domain</span>
+                </div>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="mode"
+                  value="custom"
+                  class="radio radio-primary radio-sm"
+                  checked={@data_gen_config.mode == :custom}
+                />
+                <div>
+                  <span class="text-sm font-medium">Custom Lists</span>
+                  <span class="text-xs opacity-70 block">Your own names, titles, and domain</span>
+                </div>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="mode"
+                  value="random"
+                  class="radio radio-primary radio-sm"
+                  checked={@data_gen_config.mode == :random}
+                />
+                <div>
+                  <span class="text-sm font-medium">Realistic Random</span>
+                  <span class="text-xs opacity-70 block">
+                    Algorithmically generated plausible names
+                  </span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="divider my-2"></div>
+
+          <!-- Domain fields (shown for custom and random) -->
+          <%= if @data_gen_config.mode in [:custom, :random] do %>
+            <div class="space-y-3 mb-4">
+              <div>
+                <label class="label"><span class="label-text text-sm">Email Domain</span></label>
+                <input
+                  type="text"
+                  name="email_domain"
+                  value={@data_gen_config.email_domain}
+                  placeholder="example.com"
+                  class="input input-bordered input-sm w-full"
+                />
+              </div>
+              <div>
+                <label class="label"><span class="label-text text-sm">URL Domain</span></label>
+                <input
+                  type="text"
+                  name="url_domain"
+                  value={@data_gen_config.url_domain}
+                  placeholder="example.com"
+                  class="input input-bordered input-sm w-full"
+                />
+              </div>
+            </div>
+          <% end %>
+          <!-- Custom list fields (shown only for custom mode) -->
+          <%= if @data_gen_config.mode == :custom do %>
+            <div class="space-y-3 mb-4">
+              <div>
+                <label class="label">
+                  <span class="label-text text-sm">First Names</span>
+                  <span class="label-text-alt text-xs opacity-60">comma-separated</span>
+                </label>
+                <textarea
+                  name="first_names"
+                  rows="2"
+                  placeholder="John, Jane, Alice, Bob"
+                  class="textarea textarea-bordered textarea-sm w-full"
+                ><%= Enum.join(@data_gen_config.first_names, ", ") %></textarea>
+              </div>
+              <div>
+                <label class="label">
+                  <span class="label-text text-sm">Last Names</span>
+                  <span class="label-text-alt text-xs opacity-60">comma-separated</span>
+                </label>
+                <textarea
+                  name="last_names"
+                  rows="2"
+                  placeholder="Smith, Johnson, Williams, Brown"
+                  class="textarea textarea-bordered textarea-sm w-full"
+                ><%= Enum.join(@data_gen_config.last_names, ", ") %></textarea>
+              </div>
+              <div>
+                <label class="label">
+                  <span class="label-text text-sm">Job Titles</span>
+                  <span class="label-text-alt text-xs opacity-60">comma-separated</span>
+                </label>
+                <textarea
+                  name="job_titles"
+                  rows="2"
+                  placeholder="Software Engineer, Product Manager, Designer"
+                  class="textarea textarea-bordered textarea-sm w-full"
+                ><%= Enum.join(@data_gen_config.job_titles, ", ") %></textarea>
+              </div>
+            </div>
+          <% end %>
+        </form>
+
+        <div class="modal-action">
+          <button phx-click="reset_data_gen" class="btn btn-ghost btn-sm">Reset to Defaults</button>
+          <button phx-click="close_settings" class="btn btn-primary btn-sm">Done</button>
+        </div>
+      </div>
+      <div class="modal-backdrop" phx-click="close_settings"></div>
     </div>
   <% end %>
 </div>

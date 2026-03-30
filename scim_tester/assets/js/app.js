@@ -30,21 +30,33 @@ const ConfigPersistence = {
   mounted() {
     // Listen for server events to load saved config
     this.handleEvent("load_saved_config", () => {
+      let dataGenConfig = null
+      try {
+        const raw = localStorage.getItem("scim_data_gen_config")
+        if (raw) dataGenConfig = JSON.parse(raw)
+      } catch (_) {}
+
       const savedConfig = {
         base_url: localStorage.getItem("scim_base_url") || "",
-        bearer_token: localStorage.getItem("scim_bearer_token") || ""
+        bearer_token: localStorage.getItem("scim_bearer_token") || "",
+        data_gen_config: dataGenConfig
       }
-      
+
       // Send saved config back to server
       this.pushEvent("config_loaded", savedConfig)
     })
 
-    // Save config on form changes  
+    // Listen for server events to save data gen config
+    this.handleEvent("save_data_gen_config", (config) => {
+      localStorage.setItem("scim_data_gen_config", JSON.stringify(config))
+    })
+
+    // Save config on form changes
     this.el.addEventListener("change", (e) => {
       const formData = new FormData(this.el)
       const base_url = formData.get("base_url") || ""
       const bearer_token = formData.get("bearer_token") || ""
-      
+
       localStorage.setItem("scim_base_url", base_url)
       localStorage.setItem("scim_bearer_token", bearer_token)
     })

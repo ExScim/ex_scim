@@ -4,6 +4,7 @@ defmodule ScimTesterWeb.ScimLive do
   alias ExScimClient.Client, as: ScimClient
   alias ExScimClient.Filter
   alias ExScimClient.Resources.{Groups, Schemas, ServiceProviderConfig, Users}
+  alias ScimTester.DataGenConfig
   alias ScimTester.ScimTesting
 
   @user_schema_id "urn:ietf:params:scim:schemas:core:2.0:User"
@@ -84,7 +85,9 @@ defmodule ScimTesterWeb.ScimLive do
         search_start_index: 1,
         schemas: nil,
         schemas_loading: false,
-        enabled_schemas: MapSet.new([@user_schema_id, @group_schema_id])
+        enabled_schemas: MapSet.new([@user_schema_id, @group_schema_id]),
+        data_gen_config: DataGenConfig.default(),
+        settings_open: false
       )
 
     send(self(), :load_saved_config)
@@ -178,10 +181,20 @@ defmodule ScimTesterWeb.ScimLive do
 
   def handle_event(
         "config_loaded",
-        %{"base_url" => base_url, "bearer_token" => bearer_token},
+        %{"base_url" => base_url, "bearer_token" => bearer_token} = params,
         socket
       ) do
-    {:noreply, apply_config(socket, base_url, bearer_token)}
+    data_gen_config =
+      params
+      |> Map.get("data_gen_config")
+      |> DataGenConfig.from_map()
+
+    socket =
+      socket
+      |> apply_config(base_url, bearer_token)
+      |> assign(data_gen_config: data_gen_config)
+
+    {:noreply, socket}
   end
 
   def handle_event("connect", _params, socket) do
@@ -239,6 +252,86 @@ defmodule ScimTesterWeb.ScimLive do
 
   def handle_event("close_modal", _params, socket) do
     {:noreply, assign(socket, modal_output: nil)}
+  end
+
+  def handle_event("open_settings", _params, socket) do
+    {:noreply, assign(socket, settings_open: true)}
+  end
+
+  def handle_event("close_settings", _params, socket) do
+    {:noreply, assign(socket, settings_open: false)}
+  end
+
+  def handle_event("update_data_gen", params, socket) do
+    config = socket.assigns.data_gen_config
+
+    config =
+      case Map.get(params, "mode") do
+        nil -> config
+        mode -> %{config | mode: String.to_existing_atom(mode)}
+      end
+
+    config =
+      case Map.get(params, "email_domain") do
+        nil -> config
+        "" -> config
+        domain -> %{config | email_domain: domain}
+      end
+
+    config =
+      case Map.get(params, "url_domain") do
+        nil -> config
+        "" -> config
+        domain -> %{config | url_domain: domain}
+      end
+
+    config =
+      case Map.get(params, "first_names") do
+        nil ->
+          config
+
+        text ->
+          names = parse_comma_list(text)
+          if names == [], do: config, else: %{config | first_names: names}
+      end
+
+    config =
+      case Map.get(params, "last_names") do
+        nil ->
+          config
+
+        text ->
+          names = parse_comma_list(text)
+          if names == [], do: config, else: %{config | last_names: names}
+      end
+
+    config =
+      case Map.get(params, "job_titles") do
+        nil ->
+          config
+
+        text ->
+          titles = parse_comma_list(text)
+          if titles == [], do: config, else: %{config | job_titles: titles}
+      end
+
+    socket =
+      socket
+      |> assign(data_gen_config: config)
+      |> push_event("save_data_gen_config", DataGenConfig.to_map(config))
+
+    {:noreply, socket}
+  end
+
+  def handle_event("reset_data_gen", _params, socket) do
+    config = DataGenConfig.default()
+
+    socket =
+      socket
+      |> assign(data_gen_config: config)
+      |> push_event("save_data_gen_config", DataGenConfig.to_map(config))
+
+    {:noreply, socket}
   end
 
   def handle_event("toggle_schema", %{"schema-id" => schema_id}, socket) do
@@ -411,6 +504,7 @@ defmodule ScimTesterWeb.ScimLive do
     live_view_pid = self()
     enabled_tests = socket.assigns.enabled_tests
     user_schema = get_user_schema(socket.assigns.schemas)
+    data_config = socket.assigns.data_gen_config
 
     {:ok, task_pid} =
       Task.start(fn ->
@@ -418,7 +512,8 @@ defmodule ScimTesterWeb.ScimLive do
           live_view_pid,
           socket.assigns.client,
           enabled_tests,
-          user_schema
+          user_schema,
+          data_config
         )
       end)
 
@@ -429,6 +524,7 @@ defmodule ScimTesterWeb.ScimLive do
   def handle_info({:retry_test, test_id}, socket) do
     live_view_pid = self()
     user_schema = get_user_schema(socket.assigns.schemas)
+    data_config = socket.assigns.data_gen_config
 
     Task.start(fn ->
       ScimTesting.run_single_test(
@@ -436,7 +532,8 @@ defmodule ScimTesterWeb.ScimLive do
         socket.assigns.client,
         test_id,
         socket.assigns.created_user_id,
-        user_schema
+        user_schema,
+        data_config
       )
     end)
 
@@ -1137,5 +1234,12 @@ defmodule ScimTesterWeb.ScimLive do
     else
       output
     end
+  end
+
+  defp parse_comma_list(text) when is_binary(text) do
+    text
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
   end
 end
