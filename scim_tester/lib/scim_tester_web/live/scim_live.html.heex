@@ -759,31 +759,29 @@
 
           <div class="divider my-2"></div>
 
-          <!-- Domain fields (shown for custom and random) -->
-          <%= if @data_gen_config.mode in [:custom, :random] do %>
-            <div class="space-y-3 mb-4">
-              <div>
-                <label class="label"><span class="label-text text-sm">Email Domain</span></label>
-                <input
-                  type="text"
-                  name="email_domain"
-                  value={@data_gen_config.email_domain}
-                  placeholder="example.com"
-                  class="input input-bordered input-sm w-full"
-                />
-              </div>
-              <div>
-                <label class="label"><span class="label-text text-sm">URL Domain</span></label>
-                <input
-                  type="text"
-                  name="url_domain"
-                  value={@data_gen_config.url_domain}
-                  placeholder="example.com"
-                  class="input input-bordered input-sm w-full"
-                />
-              </div>
+          <!-- Domain fields (always visible) -->
+          <div class="space-y-3 mb-4">
+            <div>
+              <label class="label"><span class="label-text text-sm">Email Domain</span></label>
+              <input
+                type="text"
+                name="email_domain"
+                value={@data_gen_config.email_domain}
+                placeholder="example.com"
+                class="input input-bordered input-sm w-full"
+              />
             </div>
-          <% end %>
+            <div>
+              <label class="label"><span class="label-text text-sm">URL Domain</span></label>
+              <input
+                type="text"
+                name="url_domain"
+                value={@data_gen_config.url_domain}
+                placeholder="example.com"
+                class="input input-bordered input-sm w-full"
+              />
+            </div>
+          </div>
           <!-- Custom list fields (shown only for custom mode) -->
           <%= if @data_gen_config.mode == :custom do %>
             <div class="space-y-3 mb-4">
