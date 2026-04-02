@@ -19,7 +19,17 @@ defmodule ExScimPhoenix.Controller.UserController do
 
   plug(
     ExScimPhoenix.Plugs.RequireScopes,
-    [scopes: ["scim:write"]] when action in [:create, :update, :patch, :delete]
+    [scopes: ["scim:create"]] when action in [:create]
+  )
+
+  plug(
+    ExScimPhoenix.Plugs.RequireScopes,
+    [scopes: ["scim:update"]] when action in [:update, :patch]
+  )
+
+  plug(
+    ExScimPhoenix.Plugs.RequireScopes,
+    [scopes: ["scim:delete"]] when action in [:delete]
   )
 
   @scim_list_response_schema "urn:ietf:params:scim:api:messages:2.0:ListResponse"

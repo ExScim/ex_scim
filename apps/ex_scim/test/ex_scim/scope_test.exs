@@ -30,7 +30,7 @@ defmodule ExScim.ScopeTest do
       assert {:ok, scope} =
                Scope.new(%{
                  id: "user_1",
-                 scopes: ["scim:read", "scim:write"],
+                 scopes: ["scim:read", "scim:create"],
                  tenant_id: "org_123",
                  username: "admin",
                  display_name: "Admin User",
@@ -38,7 +38,7 @@ defmodule ExScim.ScopeTest do
                })
 
       assert scope.id == "user_1"
-      assert scope.scopes == ["scim:read", "scim:write"]
+      assert scope.scopes == ["scim:read", "scim:create"]
       assert scope.tenant_id == "org_123"
       assert scope.username == "admin"
       assert scope.display_name == "Admin User"
@@ -73,13 +73,13 @@ defmodule ExScim.ScopeTest do
 
   describe "has_scope?/2" do
     test "returns true when scope is present" do
-      scope = %Scope{id: "user_1", scopes: ["scim:read", "scim:write"]}
+      scope = %Scope{id: "user_1", scopes: ["scim:read", "scim:create"]}
       assert Scope.has_scope?(scope, "scim:read")
     end
 
     test "returns false when scope is not present" do
       scope = %Scope{id: "user_1", scopes: ["scim:read"]}
-      refute Scope.has_scope?(scope, "scim:write")
+      refute Scope.has_scope?(scope, "scim:create")
     end
 
     test "returns false for empty scopes" do
@@ -90,13 +90,13 @@ defmodule ExScim.ScopeTest do
 
   describe "has_all_scopes?/2" do
     test "returns true when all scopes are present" do
-      scope = %Scope{id: "user_1", scopes: ["scim:read", "scim:write", "scim:admin"]}
-      assert Scope.has_all_scopes?(scope, ["scim:read", "scim:write"])
+      scope = %Scope{id: "user_1", scopes: ["scim:read", "scim:create", "scim:delete"]}
+      assert Scope.has_all_scopes?(scope, ["scim:read", "scim:create"])
     end
 
     test "returns false when some scopes are missing" do
       scope = %Scope{id: "user_1", scopes: ["scim:read"]}
-      refute Scope.has_all_scopes?(scope, ["scim:read", "scim:write"])
+      refute Scope.has_all_scopes?(scope, ["scim:read", "scim:create"])
     end
 
     test "returns true for empty required scopes" do
@@ -112,7 +112,7 @@ defmodule ExScim.ScopeTest do
 
   describe "struct construction" do
     test "can be created directly with required keys" do
-      scope = %Scope{id: "user_1", scopes: ["scim:read"], tenant_id: "org_1"}
+      scope = %Scope{id: "user_1", scopes: ["scim:read", "scim:create"], tenant_id: "org_1"}
       assert scope.id == "user_1"
       assert scope.tenant_id == "org_1"
     end

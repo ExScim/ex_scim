@@ -5,7 +5,10 @@ defmodule ExScim.BulkTest do
   alias ExScim.Scope
 
   # Test caller for bulk operations
-  @test_caller %Scope{id: "test-bulk-caller", scopes: ["scim:write"]}
+  @test_caller %Scope{
+    id: "test-bulk-caller",
+    scopes: ["scim:create", "scim:update", "scim:delete"]
+  }
 
   describe "process_bulk_request/3" do
     test "validates bulk request structure" do
