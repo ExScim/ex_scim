@@ -50,18 +50,25 @@ defmodule ExScim.Users.Mapper.Adapter do
 
       @impl true
       def get_meta_version(resource) do
-        case get_meta_last_modified(resource) do
-          %DateTime{} = dt ->
-            hash =
-              dt
-              |> DateTime.to_iso8601()
-              |> then(&:crypto.hash(:md5, &1))
-              |> Base.encode16(case: :lower)
+        input =
+          case Map.get(resource, :meta_version) do
+            nil ->
+              case get_meta_last_modified(resource) do
+                %DateTime{} = dt -> DateTime.to_iso8601(dt)
+                _ -> nil
+              end
 
-            "W/\"#{hash}\""
+            v ->
+              to_string(v)
+          end
 
-          _ ->
+        case input do
+          nil ->
             nil
+
+          str ->
+            hash = str |> then(&:crypto.hash(:md5, &1)) |> Base.encode16(case: :lower)
+            "W/\"#{hash}\""
         end
       end
 

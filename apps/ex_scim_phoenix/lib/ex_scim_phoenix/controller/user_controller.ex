@@ -98,7 +98,7 @@ defmodule ExScimPhoenix.Controller.UserController do
         conn
         |> put_status(:created)
         |> maybe_put_resp_header("location", get_in(user, ["meta", "location"]))
-        |> maybe_put_resp_header("etag", get_in(user, ["meta", "etag"]))
+        |> maybe_put_resp_header("etag", get_in(user, ["meta", "version"]))
         |> json(user)
 
       {:error, :conflict} ->
@@ -125,7 +125,7 @@ defmodule ExScimPhoenix.Controller.UserController do
     case Users.replace_user_from_scim(id, user_params, caller) do
       {:ok, user} ->
         conn
-        |> maybe_put_resp_header("etag", get_in(user, ["meta", "etag"]))
+        |> maybe_put_resp_header("etag", get_in(user, ["meta", "version"]))
         |> json(user)
 
       {:error, :not_found} ->
@@ -155,7 +155,7 @@ defmodule ExScimPhoenix.Controller.UserController do
     case Users.patch_user_from_scim(id, patch_params, caller) do
       {:ok, user} ->
         conn
-        |> maybe_put_resp_header("etag", get_in(user, ["meta", "etag"]))
+        |> maybe_put_resp_header("etag", get_in(user, ["meta", "version"]))
         |> json(user)
 
       {:error, :not_found} ->

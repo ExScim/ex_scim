@@ -18,9 +18,7 @@ defmodule Provider.Scim.UserMapper do
        display_name: scim_data["displayName"],
        email: get_primary_email(scim_data["emails"]),
        active: Map.get(scim_data, "active", true),
-       external_id: scim_data["externalId"] || scim_data["userName"],
-       meta_created: parse_datetime(get_in(scim_data, ["meta", "created"])),
-       meta_last_modified: parse_datetime(get_in(scim_data, ["meta", "lastModified"]))
+       external_id: scim_data["externalId"] || scim_data["userName"]
      }}
   end
 

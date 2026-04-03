@@ -3,9 +3,9 @@ defmodule ScimTester.DataGenConfig do
   Configuration for test data generation.
 
   Supports three modes:
-  - `:default` — fixed lists of names, titles, and `example.com` domain
-  - `:custom` — user-provided lists and domain
-  - `:random` — algorithmically generated plausible names via syllable combinations
+  - `:default` - fixed lists of names, titles, and `example.com` domain
+  - `:custom` - user-provided lists and domain
+  - `:random` - algorithmically generated plausible names via syllable combinations
   """
 
   @default_first_names ["John", "Jane", "Alice", "Bob", "Charlie", "Diana", "Eve", "Frank"]

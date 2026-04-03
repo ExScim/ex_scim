@@ -241,7 +241,7 @@ defmodule ExScim.Operations.Bulk do
               "bulkId" => operation.bulk_id,
               "status" => "201",
               "location" => "#{base_url}/scim/v2/Users/#{user["id"]}",
-              "version" => get_in(user, ["meta", "etag"]),
+              "version" => get_in(user, ["meta", "version"]),
               "response" => user
             }
 
@@ -262,7 +262,7 @@ defmodule ExScim.Operations.Bulk do
               "bulkId" => operation.bulk_id,
               "status" => "201",
               "location" => "#{base_url}/scim/v2/Groups/#{group["id"]}",
-              "version" => get_in(group, ["meta", "etag"]),
+              "version" => get_in(group, ["meta", "version"]),
               "response" => group
             }
 
@@ -297,7 +297,7 @@ defmodule ExScim.Operations.Bulk do
               "bulkId" => operation.bulk_id,
               "status" => "200",
               "location" => "#{base_url}/scim/v2/Users/#{user["id"]}",
-              "version" => get_in(user, ["meta", "etag"]),
+              "version" => get_in(user, ["meta", "version"]),
               "response" => user
             }
 
@@ -326,7 +326,7 @@ defmodule ExScim.Operations.Bulk do
               "bulkId" => operation.bulk_id,
               "status" => "200",
               "location" => "#{base_url}/scim/v2/Groups/#{group["id"]}",
-              "version" => get_in(group, ["meta", "etag"]),
+              "version" => get_in(group, ["meta", "version"]),
               "response" => group
             }
 
@@ -369,7 +369,7 @@ defmodule ExScim.Operations.Bulk do
               "bulkId" => operation.bulk_id,
               "status" => "200",
               "location" => "#{base_url}/scim/v2/Users/#{user["id"]}",
-              "version" => get_in(user, ["meta", "etag"]),
+              "version" => get_in(user, ["meta", "version"]),
               "response" => user
             }
 
@@ -398,7 +398,7 @@ defmodule ExScim.Operations.Bulk do
               "bulkId" => operation.bulk_id,
               "status" => "200",
               "location" => "#{base_url}/scim/v2/Groups/#{group["id"]}",
-              "version" => get_in(group, ["meta", "etag"]),
+              "version" => get_in(group, ["meta", "version"]),
               "response" => group
             }
 

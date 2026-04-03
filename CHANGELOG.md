@@ -36,14 +36,29 @@ scopes: ["scim:read", "scim:create", "scim:update"]
 
 Previously, `/Bulk` required `scim:write` upfront and then executed all operations unconditionally. Now there is no controller-level scope check on `/Bulk`; instead, each operation within the bulk payload is checked individually against the caller's scopes. Operations that fail the scope check return a `403` operation result and count toward `failOnErrors`.
 
+### Fixed
+
+#### ex_scim
+- Preserve `meta_created` across PUT (replace) operations instead of resetting it to now
+
+#### ex_scim_phoenix
+- `ETag` response header now correctly populated on POST/PUT/PATCH; controllers were reading `meta.etag` instead of `meta.version` (RFC 7643 3.1)
+- `MeController` no longer raises when `meta.version` is absent
+
+#### examples/provider
+- `UserMapper`/`GroupMapper` no longer read `meta.created`/`meta.lastModified` from client payloads (server-assigned fields)
+
 ### Added
+
+#### ex_scim
+- `get_meta_version/1` checks for a `:meta_version` field on the domain struct before falling back to the `meta_last_modified` timestamp, enabling deterministic ETags without overriding the callback
 
 - `scim:create`, `scim:update`, `scim:delete` scopes for fine-grained write authorization
 - Per-operation scope enforcement in `ExScim.Operations.Bulk`
 - Scope reference table in `ExScim.Scope` module documentation
 - Authorization Scopes section in the configuration guide
 
-## [0.1.2]
+## [0.1.2] - 2026-03-27
 
 ### ex_scim_ecto
 #### Fixed

@@ -41,6 +41,36 @@ defmodule ExScim.Groups.Mapper.AdapterTest do
       assert version =~ ~r/^W\/"[a-f0-9]+\"$/
     end
 
+    test "uses meta_version field when present instead of lastModified" do
+      now = DateTime.utc_now()
+      group = %{meta_version: "v7", meta_last_modified: now}
+
+      version = TestMapper.get_meta_version(group)
+      assert version =~ ~r/^W\/"[a-f0-9]+\"$/
+
+      timestamp_version = TestMapper.get_meta_version(%{meta_last_modified: now})
+      assert version != timestamp_version
+    end
+
+    test "meta_version produces deterministic ETag independent of lastModified" do
+      now = DateTime.utc_now()
+      later = DateTime.add(now, 3600)
+
+      v1 = TestMapper.get_meta_version(%{meta_version: "rev-3", meta_last_modified: now})
+      v2 = TestMapper.get_meta_version(%{meta_version: "rev-3", meta_last_modified: later})
+
+      assert v1 == v2
+    end
+
+    test "different meta_version values produce different ETags" do
+      now = DateTime.utc_now()
+
+      v1 = TestMapper.get_meta_version(%{meta_version: "rev-1", meta_last_modified: now})
+      v2 = TestMapper.get_meta_version(%{meta_version: "rev-2", meta_last_modified: now})
+
+      assert v1 != v2
+    end
+
     test "format_meta defaults to Group resource type" do
       group = %{meta_created: nil, meta_last_modified: nil}
 
