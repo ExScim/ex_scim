@@ -88,6 +88,48 @@ Reported in the ServiceProviderConfig discovery endpoint.
 | `:lifecycle_adapter` | `nil` | Module implementing `ExScim.Lifecycle.Adapter` |
 | `:tenant_resolver` | `nil` | Module implementing `ExScim.Tenant.Resolver` |
 
+## Authorization Scopes
+
+Scopes are strings in the `ExScim.Scope` struct's `:scopes` list, populated by your `AuthProvider.Adapter` when validating a token or credentials.
+
+### Standard scopes
+
+| Scope | Endpoints | Actions |
+|---|---|---|
+| `scim:read` | `/Users`, `/Groups`, `/Schemas`, `/ResourceTypes`, `/ServiceProviderConfig` | GET (list, show, search) |
+| `scim:create` | `/Users`, `/Groups`, `/Bulk` (POST operations) | POST |
+| `scim:update` | `/Users`, `/Groups`, `/Bulk` (PUT/PATCH operations) | PUT, PATCH |
+| `scim:delete` | `/Users`, `/Groups`, `/Bulk` (DELETE operations) | DELETE |
+
+### `/Me` scopes
+
+| Scope | Action |
+|---|---|
+| `scim:me:read` | GET `/Me` |
+| `scim:me:create` | POST `/Me` |
+| `scim:me:update` | PUT `/Me`, PATCH `/Me` |
+| `scim:me:delete` | DELETE `/Me` |
+
+### Bulk operations
+
+For `/Bulk`, scope is enforced per individual operation rather than on the request as a whole. A caller with only `scim:create` may submit a bulk request containing POST operations; any PUT, PATCH, or DELETE operations in the same payload will return a `403` operation result (and count toward `failOnErrors`).
+
+### Example scope lists
+
+```elixir
+# Read-only client
+scopes: ["scim:read"]
+
+# Provisioning client - can create and update users, but not delete them
+scopes: ["scim:read", "scim:create", "scim:update"]
+
+# Full-access admin client
+scopes: ["scim:read", "scim:create", "scim:update", "scim:delete"]
+
+# Self-service user (Me endpoint only)
+scopes: ["scim:me:read", "scim:me:update"]
+```
+
 ## Multi-Tenancy
 
 Multi-tenancy is opt-in. When no `tenant_resolver` is configured (or `scope.tenant_id` is `nil`), the system operates in single-tenant mode with no isolation applied.

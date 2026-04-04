@@ -78,11 +78,13 @@ defmodule ExScim.Operations.Users do
   Returns `{:ok, scim_user}` or `{:error, reason}`.
   """
   def replace_user_from_scim(user_id, scim_data, scope) do
-    with {:ok, _existing_user} <- Storage.get_user(user_id, scope),
+    with {:ok, existing_user} <- Storage.get_user(user_id, scope),
          {:ok, schema_validated_data} <- Validator.validate_scim_schema(scim_data),
          {:ok, user_struct} <- Mapper.from_scim(schema_validated_data, scope),
          user_with_id <- Resource.set_id(user_struct, user_id),
-         user_with_meta <- Metadata.update_metadata(user_with_id, "User"),
+         user_with_created <-
+           Map.put(user_with_id, :meta_created, Map.get(existing_user, :meta_created)),
+         user_with_meta <- Metadata.update_metadata(user_with_created, "User"),
          {:ok, hooked_data} <- Lifecycle.before_replace(:user, user_id, user_with_meta, scope),
          {:ok, stored_user} <- Storage.replace_user(user_id, hooked_data, scope),
          {:ok, scim_user} <- Mapper.to_scim(stored_user, scope) do

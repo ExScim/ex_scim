@@ -6,7 +6,7 @@ defmodule Provider.Scim.FakeAuthProvider do
     %{
       "valid_bearer_token_123" => %{
         id: "scim_client_1",
-        scopes: ["scim:read", "scim:write"],
+        scopes: ["scim:read", "scim:create", "scim:update", "scim:delete"],
         expires_at: DateTime.utc_now() |> DateTime.add(2, :day),
         active: true,
         metadata: %{
@@ -22,7 +22,9 @@ defmodule Provider.Scim.FakeAuthProvider do
           "scim:me:update",
           "scim:me:delete",
           "scim:read",
-          "scim:write"
+          "scim:create",
+          "scim:update",
+          "scim:delete"
         ],
         expires_at: DateTime.utc_now() |> DateTime.add(2, :day),
         active: true,
@@ -54,7 +56,7 @@ defmodule Provider.Scim.FakeAuthProvider do
     %{
       {"scim_user", "scim_password123"} => %{
         id: "scim_client_basic",
-        scopes: ["scim:read", "scim:write"],
+        scopes: ["scim:read", "scim:create", "scim:update", "scim:delete"],
         display_name: "SCIM Basic Auth Client",
         metadata: %{auth_method: :basic}
       },
@@ -66,7 +68,7 @@ defmodule Provider.Scim.FakeAuthProvider do
       },
       {"scim", "scim"} => %{
         id: "scim_compliance_test",
-        scopes: ["scim:read", "scim:write"],
+        scopes: ["scim:read", "scim:create", "scim:update", "scim:delete"],
         display_name: "SCIM Compliance Test Client",
         metadata: %{auth_method: :basic}
       }

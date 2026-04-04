@@ -4,7 +4,10 @@ defmodule ExScim.LifecycleTest do
 
   alias ExScim.Lifecycle
 
-  @caller %ExScim.Scope{id: "test-user", scopes: ["scim:read", "scim:write"]}
+  @caller %ExScim.Scope{
+    id: "test-user",
+    scopes: ["scim:read", "scim:create", "scim:update", "scim:delete"]
+  }
 
   setup do
     # Clear any lifecycle calls from process dict

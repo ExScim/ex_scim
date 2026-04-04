@@ -38,64 +38,38 @@ defmodule ExScim.Groups.Mapper.Adapter do
     quote do
       @behaviour ExScim.Groups.Mapper.Adapter
 
-      @impl true
-      def get_meta_created(resource) do
-        Map.get(resource, :meta_created)
-      end
+      alias ExScim.Resources.Metadata
 
       @impl true
-      def get_meta_last_modified(resource) do
-        Map.get(resource, :meta_last_modified)
-      end
+      def get_meta_created(resource), do: Map.get(resource, :meta_created)
+
+      @impl true
+      def get_meta_last_modified(resource), do: Map.get(resource, :meta_last_modified)
 
       @impl true
       def get_meta_version(resource) do
-        case get_meta_last_modified(resource) do
-          %DateTime{} = dt ->
-            hash =
-              dt
-              |> DateTime.to_iso8601()
-              |> then(&:crypto.hash(:md5, &1))
-              |> Base.encode16(case: :lower)
-
-            "W/\"#{hash}\""
-
-          _ ->
-            nil
-        end
+        Metadata.compute_version(
+          Map.get(resource, :meta_version),
+          get_meta_last_modified(resource)
+        )
       end
 
       @impl true
       def format_meta(resource, opts) do
-        location = Keyword.get(opts, :location)
-        resource_type = Keyword.get(opts, :resource_type, "Group")
-
-        %{
-          "resourceType" => resource_type,
-          "created" => format_datetime(get_meta_created(resource)),
-          "lastModified" => format_datetime(get_meta_last_modified(resource)),
-          "location" => location,
-          "version" => get_meta_version(resource)
-        }
-        |> Enum.reject(fn {_k, v} -> is_nil(v) end)
-        |> Map.new()
+        Metadata.build_meta(
+          get_meta_created(resource),
+          get_meta_last_modified(resource),
+          get_meta_version(resource),
+          Keyword.get(opts, :location),
+          Keyword.get(opts, :resource_type, "Group")
+        )
       end
 
       @doc false
-      def format_datetime(nil), do: nil
-      def format_datetime(%DateTime{} = dt), do: DateTime.to_iso8601(dt)
-      def format_datetime(binary) when is_binary(binary), do: binary
+      def format_datetime(value), do: Metadata.format_datetime(value)
 
       @doc false
-      def parse_datetime(nil), do: nil
-      def parse_datetime(%DateTime{} = dt), do: dt
-
-      def parse_datetime(binary) when is_binary(binary) do
-        case DateTime.from_iso8601(binary) do
-          {:ok, dt, _offset} -> dt
-          {:error, _} -> nil
-        end
-      end
+      def parse_datetime(value), do: Metadata.parse_datetime(value)
 
       defoverridable get_meta_created: 1,
                      get_meta_last_modified: 1,

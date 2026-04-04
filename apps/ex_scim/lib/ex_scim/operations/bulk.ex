@@ -4,6 +4,7 @@ defmodule ExScim.Operations.Bulk do
   alias ExScim.Operations.Users
   alias ExScim.Operations.Groups
   alias ExScim.Config
+  alias ExScim.Scope
 
   @bulk_request_schema "urn:ietf:params:scim:api:messages:2.0:BulkRequest"
   @bulk_response_schema "urn:ietf:params:scim:api:messages:2.0:BulkResponse"
@@ -184,12 +185,35 @@ defmodule ExScim.Operations.Bulk do
     {:ok, Enum.reverse(response_operations)}
   end
 
+  @method_scopes %{
+    "POST" => "scim:create",
+    "PUT" => "scim:update",
+    "PATCH" => "scim:update",
+    "DELETE" => "scim:delete"
+  }
+
   defp execute_single_operation(operation, caller, base_url) do
-    case operation.method do
-      "POST" -> handle_post_operation(operation, caller, base_url)
-      "PUT" -> handle_put_operation(operation, caller, base_url)
-      "PATCH" -> handle_patch_operation(operation, caller, base_url)
-      "DELETE" -> handle_delete_operation(operation, caller, base_url)
+    required_scope = Map.fetch!(@method_scopes, operation.method)
+
+    if Scope.has_scope?(caller, required_scope) do
+      case operation.method do
+        "POST" -> handle_post_operation(operation, caller, base_url)
+        "PUT" -> handle_put_operation(operation, caller, base_url)
+        "PATCH" -> handle_patch_operation(operation, caller, base_url)
+        "DELETE" -> handle_delete_operation(operation, caller, base_url)
+      end
+    else
+      %{
+        "method" => operation.method,
+        "bulkId" => operation.bulk_id,
+        "status" => "403",
+        "response" => %{
+          "schemas" => ["urn:ietf:params:scim:api:messages:2.0:Error"],
+          "scimType" => "insufficient_scope",
+          "detail" => "Missing required scope: #{required_scope}",
+          "status" => "403"
+        }
+      }
     end
   rescue
     error ->
@@ -217,7 +241,7 @@ defmodule ExScim.Operations.Bulk do
               "bulkId" => operation.bulk_id,
               "status" => "201",
               "location" => "#{base_url}/scim/v2/Users/#{user["id"]}",
-              "version" => get_in(user, ["meta", "etag"]),
+              "version" => get_in(user, ["meta", "version"]),
               "response" => user
             }
 
@@ -238,7 +262,7 @@ defmodule ExScim.Operations.Bulk do
               "bulkId" => operation.bulk_id,
               "status" => "201",
               "location" => "#{base_url}/scim/v2/Groups/#{group["id"]}",
-              "version" => get_in(group, ["meta", "etag"]),
+              "version" => get_in(group, ["meta", "version"]),
               "response" => group
             }
 
@@ -273,7 +297,7 @@ defmodule ExScim.Operations.Bulk do
               "bulkId" => operation.bulk_id,
               "status" => "200",
               "location" => "#{base_url}/scim/v2/Users/#{user["id"]}",
-              "version" => get_in(user, ["meta", "etag"]),
+              "version" => get_in(user, ["meta", "version"]),
               "response" => user
             }
 
@@ -302,7 +326,7 @@ defmodule ExScim.Operations.Bulk do
               "bulkId" => operation.bulk_id,
               "status" => "200",
               "location" => "#{base_url}/scim/v2/Groups/#{group["id"]}",
-              "version" => get_in(group, ["meta", "etag"]),
+              "version" => get_in(group, ["meta", "version"]),
               "response" => group
             }
 
@@ -345,7 +369,7 @@ defmodule ExScim.Operations.Bulk do
               "bulkId" => operation.bulk_id,
               "status" => "200",
               "location" => "#{base_url}/scim/v2/Users/#{user["id"]}",
-              "version" => get_in(user, ["meta", "etag"]),
+              "version" => get_in(user, ["meta", "version"]),
               "response" => user
             }
 
@@ -374,7 +398,7 @@ defmodule ExScim.Operations.Bulk do
               "bulkId" => operation.bulk_id,
               "status" => "200",
               "location" => "#{base_url}/scim/v2/Groups/#{group["id"]}",
-              "version" => get_in(group, ["meta", "etag"]),
+              "version" => get_in(group, ["meta", "version"]),
               "response" => group
             }
 

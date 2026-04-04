@@ -353,7 +353,7 @@ defmodule ScimTester.SchemaPayloadTest do
         ]
       }
 
-      # Run multiple times — each value should come from canonical list
+      # Run multiple times - each value should come from canonical list
       for _ <- 1..20 do
         payload = SchemaPayload.generate_create_payload(schema)
 

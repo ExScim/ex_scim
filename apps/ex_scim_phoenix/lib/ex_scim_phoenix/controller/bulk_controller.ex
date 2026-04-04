@@ -13,11 +13,6 @@ defmodule ExScimPhoenix.Controller.BulkController do
   alias ExScim.Operations.Bulk
   alias ExScim.Config
 
-  plug(
-    ExScimPhoenix.Plugs.RequireScopes,
-    [scopes: ["scim:write"]] when action in [:bulk]
-  )
-
   # Default configuration values
   @default_max_operations 1000
   # 1MB

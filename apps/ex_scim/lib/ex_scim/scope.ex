@@ -3,6 +3,48 @@ defmodule ExScim.Scope do
   Represents the scope of a SCIM request: identity, authorization, and tenant context.
 
   When `tenant_id` is `nil`, the system behaves as single-tenant (no isolation).
+
+  ## Authorization Scopes
+
+  The following standard scopes are enforced by `ExScimPhoenix`:
+
+  | Scope | Endpoints | Actions |
+  |---|---|---|
+  | `scim:read` | `/Users`, `/Groups`, `/Schemas`, `/ResourceTypes`, `/ServiceProviderConfig` | GET (list, show, search) |
+  | `scim:create` | `/Users`, `/Groups`, `/Bulk` (POST operations) | POST |
+  | `scim:update` | `/Users`, `/Groups`, `/Bulk` (PUT/PATCH operations) | PUT, PATCH |
+  | `scim:delete` | `/Users`, `/Groups`, `/Bulk` (DELETE operations) | DELETE |
+
+  `/Me` uses its own set of fine-grained scopes:
+
+  | Scope | Action |
+  |---|---|
+  | `scim:me:read` | GET `/Me` |
+  | `scim:me:create` | POST `/Me` |
+  | `scim:me:update` | PUT `/Me`, PATCH `/Me` |
+  | `scim:me:delete` | DELETE `/Me` |
+
+  For bulk operations, scope is enforced per individual operation rather than on the
+  request as a whole. A caller with only `scim:create` may submit a bulk request
+  containing POST operations; any PUT, PATCH, or DELETE operations in the same payload
+  will return a `403` operation result.
+
+  ### Example scope lists
+
+  Read-only client:
+  ```elixir
+  scopes: ["scim:read"]
+  ```
+
+  Provisioning client (create and update, but not delete):
+  ```elixir
+  scopes: ["scim:read", "scim:create", "scim:update"]
+  ```
+
+  Full-access admin client:
+  ```elixir
+  scopes: ["scim:read", "scim:create", "scim:update", "scim:delete"]
+  ```
   """
 
   @enforce_keys [:id, :scopes]

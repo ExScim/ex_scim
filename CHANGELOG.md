@@ -5,7 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.2]
+## [0.2.0]
+
+### Breaking Changes
+
+#### ex_scim, ex_scim_phoenix
+
+The coarse `scim:write` scope has been removed and replaced with three fine-grained scopes:
+
+| New scope | Replaces | Covers |
+|---|---|---|
+| `scim:create` | `scim:write` | POST `/Users`, POST `/Groups`, POST operations in `/Bulk` |
+| `scim:update` | `scim:write` | PUT/PATCH `/Users`, PUT/PATCH `/Groups`, PUT/PATCH operations in `/Bulk` |
+| `scim:delete` | `scim:write` | DELETE `/Users`, DELETE `/Groups`, DELETE operations in `/Bulk` |
+
+**Migration:** In your `AuthProvider.Adapter` implementation, replace `"scim:write"` in every token or credential scope list with the specific scopes that client should have:
+
+```elixir
+# Before
+scopes: ["scim:read", "scim:write"]
+
+# After - full write access
+scopes: ["scim:read", "scim:create", "scim:update", "scim:delete"]
+
+# After - provisioning only (no delete)
+scopes: ["scim:read", "scim:create", "scim:update"]
+```
+
+#### ex_scim_phoenix - Bulk scope enforcement
+
+Previously, `/Bulk` required `scim:write` upfront and then executed all operations unconditionally. Now there is no controller-level scope check on `/Bulk`; instead, each operation within the bulk payload is checked individually against the caller's scopes. Operations that fail the scope check return a `403` operation result and count toward `failOnErrors`.
+
+### Fixed
+
+#### ex_scim
+- Preserve `meta_created` across PUT (replace) operations instead of resetting it to now
+
+#### ex_scim_phoenix
+- `ETag` response header now correctly populated on POST/PUT/PATCH; controllers were reading `meta.etag` instead of `meta.version` (RFC 7643 3.1)
+- `MeController` no longer raises when `meta.version` is absent
+
+#### examples/provider
+- `UserMapper`/`GroupMapper` no longer read `meta.created`/`meta.lastModified` from client payloads (server-assigned fields)
+
+### Added
+
+#### ex_scim
+- `get_meta_version/1` checks for a `:meta_version` field on the domain struct before falling back to the `meta_last_modified` timestamp, enabling deterministic ETags without overriding the callback
+
+- `scim:create`, `scim:update`, `scim:delete` scopes for fine-grained write authorization
+- Per-operation scope enforcement in `ExScim.Operations.Bulk`
+- Scope reference table in `ExScim.Scope` module documentation
+- Authorization Scopes section in the configuration guide
+
+## [0.1.2] - 2026-03-27
 
 ### ex_scim_ecto
 #### Fixed

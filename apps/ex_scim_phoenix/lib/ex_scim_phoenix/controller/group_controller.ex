@@ -19,7 +19,17 @@ defmodule ExScimPhoenix.Controller.GroupController do
 
   plug(
     ExScimPhoenix.Plugs.RequireScopes,
-    [scopes: ["scim:write"]] when action in [:create, :update, :patch, :delete]
+    [scopes: ["scim:create"]] when action in [:create]
+  )
+
+  plug(
+    ExScimPhoenix.Plugs.RequireScopes,
+    [scopes: ["scim:update"]] when action in [:update, :patch]
+  )
+
+  plug(
+    ExScimPhoenix.Plugs.RequireScopes,
+    [scopes: ["scim:delete"]] when action in [:delete]
   )
 
   @scim_list_response_schema "urn:ietf:params:scim:api:messages:2.0:ListResponse"
@@ -88,7 +98,7 @@ defmodule ExScimPhoenix.Controller.GroupController do
         conn
         |> put_status(:created)
         |> maybe_put_resp_header("location", get_in(group, ["meta", "location"]))
-        |> maybe_put_resp_header("etag", get_in(group, ["meta", "etag"]))
+        |> maybe_put_resp_header("etag", get_in(group, ["meta", "version"]))
         |> json(group)
 
       {:error, :conflict} ->
@@ -115,7 +125,7 @@ defmodule ExScimPhoenix.Controller.GroupController do
     case Groups.replace_group_from_scim(id, group_params, caller) do
       {:ok, group} ->
         conn
-        |> maybe_put_resp_header("etag", get_in(group, ["meta", "etag"]))
+        |> maybe_put_resp_header("etag", get_in(group, ["meta", "version"]))
         |> json(group)
 
       {:error, :not_found} ->
@@ -145,7 +155,7 @@ defmodule ExScimPhoenix.Controller.GroupController do
     case Groups.patch_group_from_scim(id, patch_params, caller) do
       {:ok, group} ->
         conn
-        |> maybe_put_resp_header("etag", get_in(group, ["meta", "etag"]))
+        |> maybe_put_resp_header("etag", get_in(group, ["meta", "version"]))
         |> json(group)
 
       {:error, :not_found} ->

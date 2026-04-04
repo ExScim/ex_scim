@@ -72,7 +72,7 @@ defmodule ExScimPhoenix.Controller.MeController do
       conn
       |> put_status(:created)
       |> put_resp_header("location", scim_me_location(conn))
-      |> put_resp_header("etag", get_in(user, ["meta", "etag"]))
+      |> maybe_put_resp_header("etag", get_in(user, ["meta", "version"]))
       |> json(user)
     else
       {:error, :anonymous_not_allowed} ->
@@ -116,7 +116,7 @@ defmodule ExScimPhoenix.Controller.MeController do
       {:ok, user} ->
         conn
         |> put_resp_header("location", scim_me_location(conn))
-        |> put_resp_header("etag", get_in(user, ["meta", "etag"]))
+        |> maybe_put_resp_header("etag", get_in(user, ["meta", "version"]))
         |> json(user)
 
       {:error, :user_not_found} ->
@@ -147,7 +147,7 @@ defmodule ExScimPhoenix.Controller.MeController do
       {:ok, user} ->
         conn
         |> put_resp_header("location", scim_me_location(conn))
-        |> put_resp_header("etag", get_in(user, ["meta", "etag"]))
+        |> maybe_put_resp_header("etag", get_in(user, ["meta", "version"]))
         |> json(user)
 
       {:error, :user_not_found} ->
@@ -258,6 +258,9 @@ defmodule ExScimPhoenix.Controller.MeController do
       params
     end
   end
+
+  defp maybe_put_resp_header(conn, _header, nil), do: conn
+  defp maybe_put_resp_header(conn, header, value), do: put_resp_header(conn, header, value)
 
   defp maybe_add_field(map, _key, nil), do: map
   defp maybe_add_field(map, key, value), do: Map.put(map, key, value)

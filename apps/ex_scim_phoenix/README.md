@@ -55,3 +55,22 @@ The router macro registers these controllers automatically:
 - `SchemaController` - `/Schemas` discovery
 - `ResourceTypeController` - `/ResourceTypes` discovery
 - `ServiceProviderConfigController` - `/ServiceProviderConfig` capabilities
+
+## Authorization Scopes
+
+Scope strings are populated by your `AuthProvider.Adapter` and enforced per action:
+
+| Scope | Actions |
+|---|---|
+| `scim:read` | GET list, show, search on Users/Groups and all discovery endpoints |
+| `scim:create` | POST `/Users`, POST `/Groups`, POST operations in `/Bulk` |
+| `scim:update` | PUT and PATCH on `/Users`, `/Groups`; PUT/PATCH operations in `/Bulk` |
+| `scim:delete` | DELETE on `/Users`, `/Groups`; DELETE operations in `/Bulk` |
+| `scim:me:read` | GET `/Me` |
+| `scim:me:create` | POST `/Me` |
+| `scim:me:update` | PUT `/Me`, PATCH `/Me` |
+| `scim:me:delete` | DELETE `/Me` |
+
+For `/Bulk`, scope is checked per operation - a caller with `scim:create` only may include POST operations; PUT/PATCH/DELETE operations in the same request will each return a `403` operation result.
+
+See the [configuration guide](https://hexdocs.pm/ex_scim/configuration.html) for example scope lists.

@@ -66,6 +66,37 @@ defmodule ExScim.Users.Mapper.AdapterTest do
       assert TestMapper.get_meta_version(user) == nil
     end
 
+    test "uses meta_version field when present instead of lastModified" do
+      now = DateTime.utc_now()
+      user = %{meta_version: "v42", meta_last_modified: now}
+
+      version = TestMapper.get_meta_version(user)
+      assert version =~ ~r/^W\/"[a-f0-9]+\"$/
+
+      # Must differ from the timestamp-based version
+      timestamp_version = TestMapper.get_meta_version(%{meta_last_modified: now})
+      assert version != timestamp_version
+    end
+
+    test "meta_version produces deterministic ETag independent of lastModified" do
+      now = DateTime.utc_now()
+      later = DateTime.add(now, 3600)
+
+      v1 = TestMapper.get_meta_version(%{meta_version: "rev-99", meta_last_modified: now})
+      v2 = TestMapper.get_meta_version(%{meta_version: "rev-99", meta_last_modified: later})
+
+      assert v1 == v2
+    end
+
+    test "different meta_version values produce different ETags" do
+      now = DateTime.utc_now()
+
+      v1 = TestMapper.get_meta_version(%{meta_version: "rev-1", meta_last_modified: now})
+      v2 = TestMapper.get_meta_version(%{meta_version: "rev-2", meta_last_modified: now})
+
+      assert v1 != v2
+    end
+
     test "format_meta produces RFC 7643 compliant structure" do
       now = DateTime.utc_now()
       user = %{meta_created: now, meta_last_modified: now}

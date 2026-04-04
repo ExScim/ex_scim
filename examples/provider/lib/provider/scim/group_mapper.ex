@@ -15,9 +15,7 @@ defmodule Provider.Scim.GroupMapper do
        display_name: scim_data["displayName"],
        description: scim_data["description"] || scim_data["displayName"],
        external_id: scim_data["externalId"] || scim_data["displayName"],
-       active: Map.get(scim_data, "active", true),
-       meta_created: parse_datetime(get_in(scim_data, ["meta", "created"])),
-       meta_last_modified: parse_datetime(get_in(scim_data, ["meta", "lastModified"]))
+       active: Map.get(scim_data, "active", true)
      }}
   end
 

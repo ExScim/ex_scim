@@ -78,11 +78,13 @@ defmodule ExScim.Operations.Groups do
   Returns `{:ok, scim_group}` or `{:error, reason}`.
   """
   def replace_group_from_scim(group_id, scim_data, scope) do
-    with {:ok, _existing_group} <- Storage.get_group(group_id, scope),
+    with {:ok, existing_group} <- Storage.get_group(group_id, scope),
          {:ok, schema_validated_data} <- Validator.validate_scim_schema(scim_data),
          {:ok, group_struct} <- Mapper.from_scim(schema_validated_data, scope),
          group_with_id <- Resource.set_id(group_struct, group_id),
-         group_with_meta <- Metadata.update_metadata(group_with_id, "Group"),
+         group_with_created <-
+           Map.put(group_with_id, :meta_created, Map.get(existing_group, :meta_created)),
+         group_with_meta <- Metadata.update_metadata(group_with_created, "Group"),
          {:ok, hooked_data} <-
            Lifecycle.before_replace(:group, group_id, group_with_meta, scope),
          {:ok, stored_group} <- Storage.replace_group(group_id, hooked_data, scope),
