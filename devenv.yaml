@@ -6,3 +6,5 @@ inputs:
         follows: nixpkgs
   nixpkgs:
     url: github:cachix/devenv-nixpkgs/rolling
+  expert:
+    url: github:elixir-lang/expert?ref=v0.1.4
