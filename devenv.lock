@@ -28,11 +28,11 @@
     "devenv": {
       "locked": {
         "dir": "src/modules",
-        "lastModified": 1780991472,
-        "narHash": "sha256-5SglTZTbq5xyrhgH0+1xIZ92lC+W1aNMm9tEvFt4k9U=",
+        "lastModified": 1781195293,
+        "narHash": "sha256-C9OFghpvf3RzK2rGsZjjNNrTrHgFOecEkpDhFnU4QGs=",
         "owner": "cachix",
         "repo": "devenv",
-        "rev": "822871663d1568432b8eef86a714352519b158b8",
+        "rev": "5f5109c83854577191634f7b86fc6e0c8fd44964",
         "type": "github"
       },
       "original": {
@@ -49,16 +49,16 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1777927296,
-        "narHash": "sha256-IOttF3KB5p7hfCVkLD5sS3QVETs4Yj7mcWtIHvoVTJ0=",
-        "owner": "elixir-lang",
+        "lastModified": 1781134862,
+        "narHash": "sha256-QpL58+rzXCl8jT/8sbvDmDZtcWz0+ZKg47XC33EwFyE=",
+        "owner": "expert-lsp",
         "repo": "expert",
-        "rev": "314cfb3e20014170a9b950a3fe10a42ae3b6c4f2",
+        "rev": "e3f762013c4337e1cd10d6154d340140b6113ba5",
         "type": "github"
       },
       "original": {
-        "owner": "elixir-lang",
-        "ref": "v0.1.4",
+        "owner": "expert-lsp",
+        "ref": "v0.1.5",
         "repo": "expert",
         "type": "github"
       }

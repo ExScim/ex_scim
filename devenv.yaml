@@ -1,6 +1,6 @@
 inputs:
   expert:
-    url: github:elixir-lang/expert?ref=v0.1.4
+    url: github:expert-lsp/expert?ref=v0.1.5
   git-hooks:
     url: github:cachix/git-hooks.nix
     inputs:
