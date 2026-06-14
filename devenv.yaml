@@ -1,4 +1,6 @@
 inputs:
+  expert:
+    url: github:elixir-lang/expert?ref=v0.1.4
   git-hooks:
     url: github:cachix/git-hooks.nix
     inputs:
@@ -6,5 +8,8 @@ inputs:
         follows: nixpkgs
   nixpkgs:
     url: github:cachix/devenv-nixpkgs/rolling
-  expert:
-    url: github:elixir-lang/expert?ref=v0.1.4
+  nixpkgs-unstable:
+    url: github:NixOS/nixpkgs/nixpkgs-unstable
+
+nixpkgs:
+  allow_unfree: false

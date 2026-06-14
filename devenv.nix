@@ -6,6 +6,9 @@
   ...
 }:
 
+let
+  pkgs-unstable = import inputs.nixpkgs-unstable { system = pkgs.stdenv.system; };
+in
 {
   packages = [
     pkgs.git
@@ -19,15 +22,8 @@
   ];
 
   languages.elixir.enable = true;
-  languages.elixir.package = pkgs.beam28Packages.elixir_1_20.overrideAttrs {
-    version = "1.20.1";
-    src = pkgs.fetchFromGitHub {
-      owner = "elixir-lang";
-      repo = "elixir";
-      rev = "v1.20.1";
-      hash = "sha256-eOYqYcZpHJqgbut0iOrey6CMD3LIvpqc3AU9L/g7a+Y=";
-    };
-  };
+  languages.elixir.package = pkgs-unstable.beam29Packages.elixir_1_20;
+
   languages.javascript.enable = true;
 
   env.TAILWINDCSS_PATH = "${pkgs.lib.getExe pkgs.tailwindcss_4}";
