@@ -1,6 +1,9 @@
 defmodule ExScimEcto.StorageAdapterTest do
   use ExUnit.Case, async: false
 
+  # Requires a live Postgres; excluded by default. Run with: mix test --include db
+  @moduletag :db
+
   alias ExScimEcto.StorageAdapter
   alias ExScimEcto.TestRepo
   alias ExScimEcto.TestSupport.{User, UserEmail}
