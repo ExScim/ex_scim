@@ -2,8 +2,8 @@ defmodule ExScimPhoenix.Controller.BulkController do
   @moduledoc """
   SCIM 2.0 Bulk Operations Controller implementing RFC 7644 Section 3.7.
 
-  Handles bulk create, update, patch, and delete operations with error
-  handling and configurable failure thresholds.
+  Handles bulk create, update, patch, and delete operations with error handling
+  and configurable failure thresholds.
   """
 
   use Phoenix.Controller, formats: [:json]
@@ -45,12 +45,8 @@ defmodule ExScimPhoenix.Controller.BulkController do
         |> put_status(status_code)
         |> json(bulk_response)
 
-      {:error, reason} when is_binary(reason) ->
-        send_scim_error(conn, :bad_request, :invalid_syntax, reason)
-
       {:error, reason} ->
-        Logger.error("Bulk operation error: #{inspect(reason)}")
-        send_scim_error(conn, :bad_request, :invalid_value, "Invalid bulk request")
+        send_scim_error(conn, :bad_request, :invalid_syntax, reason)
     end
   end
 

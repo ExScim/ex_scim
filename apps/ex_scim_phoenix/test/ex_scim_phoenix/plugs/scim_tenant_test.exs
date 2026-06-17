@@ -122,10 +122,68 @@ defmodule ExScimPhoenix.Plugs.ScimTenantTest do
     end
   end
 
+  describe "resolver error responses" do
+    defp call_with_resolver_error(reason) do
+      Application.put_env(
+        :ex_scim,
+        :tenant_resolver,
+        ExScimPhoenix.Plugs.ScimTenantTest.ErrorResolver
+      )
+
+      Process.put(:tenant_error_reason, reason)
+
+      conn(:get, "/scim/v2/Users")
+      |> assign(:scim_scope, %Scope{id: "user_1", scopes: ["scim:read"]})
+      |> ScimTenant.call(ScimTenant.init([]))
+    end
+
+    defp error_body(conn), do: Jason.decode!(conn.resp_body)
+
+    test "halts with 403 and a SCIM error body" do
+      conn = call_with_resolver_error(:missing_tenant)
+
+      assert conn.halted
+      assert conn.status == 403
+      body = error_body(conn)
+      assert body["schemas"] == ["urn:ietf:params:scim:api:messages:2.0:Error"]
+      assert body["status"] == "403"
+    end
+
+    test ":missing_tenant -> 'Tenant identifier required'" do
+      assert error_body(call_with_resolver_error(:missing_tenant))["detail"] ==
+               "Tenant identifier required"
+    end
+
+    test ":invalid_tenant -> 'Invalid tenant identifier'" do
+      assert error_body(call_with_resolver_error(:invalid_tenant))["detail"] ==
+               "Invalid tenant identifier"
+    end
+
+    test "a binary reason is used verbatim as the detail" do
+      assert error_body(call_with_resolver_error("custom tenant problem"))["detail"] ==
+               "custom tenant problem"
+    end
+
+    test "any other reason -> generic 'Tenant resolution failed'" do
+      assert error_body(call_with_resolver_error(:something_unexpected))["detail"] ==
+               "Tenant resolution failed"
+    end
+  end
+
   describe "init/1" do
     test "returns opts unchanged" do
       assert ScimTenant.init([]) == []
       assert ScimTenant.init(foo: :bar) == [foo: :bar]
+    end
+  end
+
+  # Resolver that returns whatever error reason the test stashed in the process dict.
+  defmodule ErrorResolver do
+    @behaviour ExScim.Tenant.Resolver
+
+    @impl true
+    def resolve_tenant(_conn, _scope) do
+      {:error, Process.get(:tenant_error_reason)}
     end
   end
 end
