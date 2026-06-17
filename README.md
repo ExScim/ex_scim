@@ -2,7 +2,11 @@
 
 [![CI](https://github.com/ExScim/ex_scim_umbrella/actions/workflows/ci.yml/badge.svg)](https://github.com/ExScim/ex_scim_umbrella/actions/workflows/ci.yml)
 
-SCIM 2.0 implementation for Elixir. Adapter-based and modular - bring your own storage, authentication, and resource mapping. Built on [RFC 7643](https://www.rfc-editor.org/rfc/rfc7643), [RFC 7644](https://www.rfc-editor.org/rfc/rfc7644), and [RFC 6902](https://www.rfc-editor.org/rfc/rfc6902).
+SCIM 2.0 implementation for Elixir. Adapter-based and modular - bring your own
+storage, authentication, and resource mapping. Built on
+[RFC 7643](https://www.rfc-editor.org/rfc/rfc7643),
+[RFC 7644](https://www.rfc-editor.org/rfc/rfc7644), and
+[RFC 6902](https://www.rfc-editor.org/rfc/rfc6902).
 
 ## Packages
 
@@ -67,11 +71,13 @@ All SCIM endpoints are now available under `/scim/v2`.
 
 ## Documentation
 
-Full configuration reference, multi-tenancy guide, custom adapter examples, and endpoint listing are available on [HexDocs](https://hexdocs.pm/ex_scim).
+Full configuration reference, multi-tenancy guide, custom adapter examples, and
+endpoint listing are available on [HexDocs](https://hexdocs.pm/ex_scim).
 
 ## Example
 
-The [`examples/provider`](./examples/provider) app demonstrates a complete SCIM server with Phoenix, Ecto, and SQLite:
+The [`examples/provider`](./examples/provider) app demonstrates a complete SCIM
+server with Phoenix, Ecto, and SQLite:
 
 ```bash
 cd examples/provider
