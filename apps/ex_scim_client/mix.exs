@@ -43,6 +43,8 @@ defmodule ExScimClient.MixProject do
     [
       {:req, "~> 0.5.0"},
       {:jason, "~> 1.4"},
+      # Req.Test routes stubbed responses through a Plug; required for the HTTP-mocked resource tests.
+      {:plug, ">= 0.0.0", only: :test},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
     ]
