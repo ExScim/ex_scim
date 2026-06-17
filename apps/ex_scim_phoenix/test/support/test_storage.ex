@@ -25,8 +25,18 @@ defmodule ExScimPhoenix.Test.TestStorage do
 
   def stop do
     case Process.whereis(__MODULE__) do
-      nil -> :ok
-      pid -> Agent.stop(pid)
+      nil ->
+        :ok
+
+      pid ->
+        # The Agent is linked to the test process, so it may already be tearing
+        # down by the time this on_exit callback runs in its own process. Tolerate
+        # the dead/dying process instead of exiting with :noproc.
+        try do
+          Agent.stop(pid)
+        catch
+          :exit, _ -> :ok
+        end
     end
   end
 
