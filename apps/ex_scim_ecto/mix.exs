@@ -9,6 +9,7 @@ defmodule ExScimEcto.MixProject do
       app: :ex_scim_ecto,
       version: @version,
       elixir: "~> 1.18",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       description: "Ecto-based storage adapter for ExScim",
@@ -30,6 +31,9 @@ defmodule ExScimEcto.MixProject do
       extra_applications: [:logger]
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
 
   defp package do
     [
