@@ -18,11 +18,9 @@ defmodule ExScim.Config do
 
       iex> ExScim.Config.base_url()
       "http://localhost:4000"
-      
-      # With configuration
-      Application.put_env(:ex_scim, :base_url, "https://api.example.com")
-      iex> ExScim.Config.base_url()
-      "https://api.example.com"
+
+  When `config :ex_scim, base_url: "https://api.example.com"` is set, that
+  value is returned instead.
   """
   @spec base_url() :: String.t()
   def base_url do

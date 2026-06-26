@@ -75,15 +75,35 @@ defmodule ExScim.Scope do
   @doc """
   Creates a new Scope from a map or keyword list.
 
-  Raises `ArgumentError` if required keys `:id` or `:scopes` are missing.
+  Returns `:error` when the required `:id` or `:scopes` keys are missing or of
+  the wrong type.
 
   ## Examples
 
-      iex> Scope.new(%{id: "user_1", scopes: ["scim:read"]})
-      {:ok, %Scope{id: "user_1", scopes: ["scim:read"], metadata: %{}}}
+      iex> ExScim.Scope.new(%{id: "user_1", scopes: ["scim:read"]})
+      {:ok,
+       %ExScim.Scope{
+         id: "user_1",
+         tenant_id: nil,
+         username: nil,
+         display_name: nil,
+         scopes: ["scim:read"],
+         metadata: %{}
+       }}
 
-      iex> Scope.new(id: "client_1", scopes: ["scim:read", "scim:write"], tenant_id: "org_123")
-      {:ok, %Scope{id: "client_1", scopes: ["scim:read", "scim:write"], tenant_id: "org_123", metadata: %{}}}
+      iex> ExScim.Scope.new(id: "client_1", scopes: ["scim:read", "scim:create"], tenant_id: "org_123")
+      {:ok,
+       %ExScim.Scope{
+         id: "client_1",
+         tenant_id: "org_123",
+         username: nil,
+         display_name: nil,
+         scopes: ["scim:read", "scim:create"],
+         metadata: %{}
+       }}
+
+      iex> ExScim.Scope.new(%{scopes: ["scim:read"]})
+      :error
   """
   @spec new(map() | keyword()) :: {:ok, t()} | :error
   def new(attrs) when is_list(attrs), do: new(Map.new(attrs))

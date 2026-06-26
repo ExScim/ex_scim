@@ -8,16 +8,19 @@ defmodule ExScim.Schema.Repository do
 
   @behaviour ExScim.Schema.Repository.Adapter
 
+  @doc "Retrieves a schema by its URI. Returns `{:ok, schema}` or `{:error, :not_found}`."
   @impl true
   def get_schema(schema_uri) do
     adapter().get_schema(schema_uri)
   end
 
+  @doc "Lists all schemas known to the configured repository."
   @impl true
   def list_schemas do
     adapter().list_schemas()
   end
 
+  @doc "Returns `true` if a schema with the given URI exists."
   @impl true
   def has_schema?(schema_uri) do
     adapter().has_schema?(schema_uri)
