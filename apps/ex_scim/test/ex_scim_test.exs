@@ -1,6 +1,7 @@
 defmodule ExScimTest do
   use ExUnit.Case
   doctest ExScim
+  doctest ExScim.Config
 
   test "provides version information" do
     version = ExScim.version()

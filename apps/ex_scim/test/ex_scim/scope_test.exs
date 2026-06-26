@@ -1,5 +1,6 @@
 defmodule ExScim.ScopeTest do
   use ExUnit.Case, async: true
+  doctest ExScim.Scope
 
   alias ExScim.Scope
 
