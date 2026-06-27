@@ -1,61 +1,16 @@
 defmodule ScimTesterWeb.ScimLive do
   use ScimTesterWeb, :live_view
 
-  alias ExScimClient.Client, as: ScimClient
-  alias ExScimClient.Filter
   alias ExScimClient.Resources.{Groups, Schemas, ServiceProviderConfig, Users}
+  alias ScimTester.Connection
   alias ScimTester.DataGenConfig
+  alias ScimTester.FilterBuilder
   alias ScimTester.ScimTesting
+  alias ScimTester.SearchAttributes
 
-  @user_schema_id "urn:ietf:params:scim:schemas:core:2.0:User"
-  @group_schema_id "urn:ietf:params:scim:schemas:core:2.0:Group"
-  @enterprise_user_schema_id "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
-
-  @common_attributes [
-    {"id", "id"},
-    {"externalId", "externalId"},
-    {"meta.created", "meta.created"},
-    {"meta.lastModified", "meta.lastModified"}
-  ]
-
-  @fallback_user_attributes [
-    {"userName", "userName"},
-    {"displayName", "displayName"},
-    {"name.givenName", "name.givenName"},
-    {"name.familyName", "name.familyName"},
-    {"emails.value", "emails.value"},
-    {"active", "active"},
-    {"title", "title"},
-    {"userType", "userType"}
-  ]
-
-  @fallback_group_attributes [
-    {"displayName", "displayName"},
-    {"members.value", "members.value"},
-    {"members.display", "members.display"}
-  ]
-
-  @filter_operators [
-    {"eq", "equals"},
-    {"ne", "not equal"},
-    {"co", "contains"},
-    {"sw", "starts with"},
-    {"ew", "ends with"},
-    {"gt", "greater than"},
-    {"ge", "greater or equal"},
-    {"lt", "less than"},
-    {"le", "less or equal"},
-    {"pr", "present"}
-  ]
-
-  @capability_display_items [
-    {"patch", "PATCH Operations"},
-    {"bulk", "Bulk Operations"},
-    {"filter", "Filtering"},
-    {"changePassword", "Change Password"},
-    {"sort", "Sorting"},
-    {"etag", "ETags"}
-  ]
+  alias ScimTesterWeb.ScimComponents
+  alias ScimTesterWeb.SearchComponents
+  alias ScimTesterWeb.TestRunnerComponents
 
   def mount(_params, _session, socket) do
     socket =
@@ -85,7 +40,7 @@ defmodule ScimTesterWeb.ScimLive do
         search_start_index: 1,
         schemas: nil,
         schemas_loading: false,
-        enabled_schemas: MapSet.new([@user_schema_id, @group_schema_id]),
+        enabled_schemas: SearchAttributes.default_enabled_schemas(),
         data_gen_config: DataGenConfig.default(),
         settings_open: false
       )
@@ -105,11 +60,45 @@ defmodule ScimTesterWeb.ScimLive do
     {:noreply, assign(socket, page_title: page_title)}
   end
 
+  # --- Connection / configuration ---
+
   def handle_event("update_config", params, socket) do
     base_url = Map.get(params, "base_url", socket.assigns.base_url)
     bearer_token = Map.get(params, "bearer_token", socket.assigns.bearer_token)
     {:noreply, apply_config(socket, base_url, bearer_token)}
   end
+
+  def handle_event(
+        "config_loaded",
+        %{"base_url" => base_url, "bearer_token" => bearer_token} = params,
+        socket
+      ) do
+    data_gen_config =
+      params
+      |> Map.get("data_gen_config")
+      |> DataGenConfig.from_map()
+
+    socket =
+      socket
+      |> apply_config(base_url, bearer_token)
+      |> assign(data_gen_config: data_gen_config)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("connect", _params, socket) do
+    client = socket.assigns.client
+
+    socket =
+      socket
+      |> assign(capabilities_applied: false)
+      |> maybe_fetch_capabilities(client)
+      |> maybe_fetch_schemas(client)
+
+    {:noreply, socket}
+  end
+
+  # --- Test runner ---
 
   def handle_event("start_tests", _params, socket) do
     case validate_configuration(socket) do
@@ -168,57 +157,37 @@ defmodule ScimTesterWeb.ScimLive do
   end
 
   def handle_event("retry_test", %{"test_id" => test_id}, socket) do
-    test_atom = String.to_existing_atom(test_id)
-    send(self(), {:retry_test, test_atom})
+    case existing_test_atom(test_id) do
+      nil ->
+        {:noreply, socket}
 
-    socket =
-      update(socket, :test_results, fn results ->
-        Map.put(results, test_atom, %{status: :running, result: nil, error: nil})
-      end)
+      test_atom ->
+        send(self(), {:retry_test, test_atom})
 
-    {:noreply, socket}
-  end
+        socket =
+          update(socket, :test_results, fn results ->
+            Map.put(results, test_atom, %{status: :running, result: nil, error: nil})
+          end)
 
-  def handle_event(
-        "config_loaded",
-        %{"base_url" => base_url, "bearer_token" => bearer_token} = params,
-        socket
-      ) do
-    data_gen_config =
-      params
-      |> Map.get("data_gen_config")
-      |> DataGenConfig.from_map()
-
-    socket =
-      socket
-      |> apply_config(base_url, bearer_token)
-      |> assign(data_gen_config: data_gen_config)
-
-    {:noreply, socket}
-  end
-
-  def handle_event("connect", _params, socket) do
-    client = socket.assigns.client
-
-    socket =
-      socket
-      |> assign(capabilities_applied: false)
-      |> maybe_fetch_capabilities(client)
-      |> maybe_fetch_schemas(client)
-
-    {:noreply, socket}
+        {:noreply, socket}
+    end
   end
 
   def handle_event("toggle_test", %{"test-id" => test_id}, socket) do
-    test_atom = String.to_existing_atom(test_id)
-    enabled_tests = socket.assigns.enabled_tests
+    case existing_test_atom(test_id) do
+      nil ->
+        {:noreply, socket}
 
-    enabled_tests =
-      if MapSet.member?(enabled_tests, test_atom),
-        do: ScimTesting.disable_test(test_atom, enabled_tests),
-        else: ScimTesting.enable_test(test_atom, enabled_tests)
+      test_atom ->
+        enabled_tests = socket.assigns.enabled_tests
 
-    {:noreply, assign(socket, enabled_tests: enabled_tests)}
+        enabled_tests =
+          if MapSet.member?(enabled_tests, test_atom),
+            do: ScimTesting.disable_test(test_atom, enabled_tests),
+            else: ScimTesting.enable_test(test_atom, enabled_tests)
+
+        {:noreply, assign(socket, enabled_tests: enabled_tests)}
+    end
   end
 
   def handle_event("toggle_all_tests", %{"action" => "enable"}, socket) do
@@ -230,29 +199,36 @@ defmodule ScimTesterWeb.ScimLive do
   end
 
   def handle_event("show_full_output", %{"test_id" => test_id, "type" => type}, socket) do
-    test_atom = String.to_existing_atom(test_id)
-    test_result = Map.get(socket.assigns.test_results, test_atom)
-    test_def = Enum.find(ScimTesting.test_definitions(), &(&1.id == test_atom))
+    case existing_test_atom(test_id) do
+      nil ->
+        {:noreply, socket}
 
-    content =
-      case type do
-        "error" -> inspect(test_result.error, pretty: true, limit: :infinity, width: 80)
-        "result" -> inspect(test_result.result, pretty: true, limit: :infinity, width: 80)
-      end
+      test_atom ->
+        test_result = Map.get(socket.assigns.test_results, test_atom)
+        test_def = Enum.find(ScimTesting.test_definitions(), &(&1.id == test_atom))
 
-    modal_output = %{
-      test_id: test_atom,
-      test_name: test_def.name,
-      type: type,
-      content: content
-    }
+        content =
+          case type do
+            "error" -> inspect(test_result.error, pretty: true, limit: :infinity, width: 80)
+            "result" -> inspect(test_result.result, pretty: true, limit: :infinity, width: 80)
+          end
 
-    {:noreply, assign(socket, modal_output: modal_output)}
+        modal_output = %{
+          test_id: test_atom,
+          test_name: test_def.name,
+          type: type,
+          content: content
+        }
+
+        {:noreply, assign(socket, modal_output: modal_output)}
+    end
   end
 
   def handle_event("close_modal", _params, socket) do
     {:noreply, assign(socket, modal_output: nil)}
   end
+
+  # --- Data generation settings ---
 
   def handle_event("open_settings", _params, socket) do
     {:noreply, assign(socket, settings_open: true)}
@@ -263,57 +239,7 @@ defmodule ScimTesterWeb.ScimLive do
   end
 
   def handle_event("update_data_gen", params, socket) do
-    config = socket.assigns.data_gen_config
-
-    config =
-      case Map.get(params, "mode") do
-        nil -> config
-        mode -> %{config | mode: String.to_existing_atom(mode)}
-      end
-
-    config =
-      case Map.get(params, "email_domain") do
-        nil -> config
-        "" -> config
-        domain -> %{config | email_domain: domain}
-      end
-
-    config =
-      case Map.get(params, "url_domain") do
-        nil -> config
-        "" -> config
-        domain -> %{config | url_domain: domain}
-      end
-
-    config =
-      case Map.get(params, "first_names") do
-        nil ->
-          config
-
-        text ->
-          names = parse_comma_list(text)
-          if names == [], do: config, else: %{config | first_names: names}
-      end
-
-    config =
-      case Map.get(params, "last_names") do
-        nil ->
-          config
-
-        text ->
-          names = parse_comma_list(text)
-          if names == [], do: config, else: %{config | last_names: names}
-      end
-
-    config =
-      case Map.get(params, "job_titles") do
-        nil ->
-          config
-
-        text ->
-          titles = parse_comma_list(text)
-          if titles == [], do: config, else: %{config | job_titles: titles}
-      end
+    config = DataGenConfig.apply_params(socket.assigns.data_gen_config, params)
 
     socket =
       socket
@@ -333,6 +259,8 @@ defmodule ScimTesterWeb.ScimLive do
 
     {:noreply, socket}
   end
+
+  # --- Search composer ---
 
   def handle_event("toggle_schema", %{"schema-id" => schema_id}, socket) do
     enabled_schemas = socket.assigns.enabled_schemas
@@ -385,7 +313,7 @@ defmodule ScimTesterWeb.ScimLive do
     new_row = %{
       id: socket.assigns.search_next_row_id,
       attribute:
-        default_attr(
+        SearchAttributes.default_attribute(
           socket.assigns.search_resource_type,
           socket.assigns.schemas,
           socket.assigns.enabled_schemas
@@ -439,13 +367,11 @@ defmodule ScimTesterWeb.ScimLive do
     resource = Enum.at(resources, index)
 
     if resource do
-      content = Jason.encode!(resource, pretty: true)
-
       modal_output = %{
         test_id: :search_result,
         test_name: "#{socket.assigns.search_resource_type} Resource",
         type: "result",
-        content: content
+        content: Jason.encode!(resource, pretty: true)
       }
 
       {:noreply, assign(socket, modal_output: modal_output)}
@@ -454,21 +380,25 @@ defmodule ScimTesterWeb.ScimLive do
     end
   end
 
+  # --- Async results ---
+
   def handle_info(:run_search, socket) do
     live_view_pid = self()
     client = socket.assigns.client
     resource_type = socket.assigns.search_resource_type
-    filter_rows = socket.assigns.search_filter_rows
-    combinator = socket.assigns.search_combinator
-    page_size = socket.assigns.search_page_size
-    start_index = socket.assigns.search_start_index
+
+    filter =
+      FilterBuilder.build(socket.assigns.search_filter_rows, socket.assigns.search_combinator)
+
+    pagination =
+      ExScimClient.Pagination.new(
+        socket.assigns.search_page_size,
+        socket.assigns.search_start_index
+      )
 
     Task.start(fn ->
       result =
         try do
-          filter = build_filter(filter_rows, combinator)
-          pagination = ExScimClient.Pagination.new(page_size, start_index)
-
           opts =
             [pagination: pagination]
             |> then(fn opts ->
@@ -517,8 +447,7 @@ defmodule ScimTesterWeb.ScimLive do
         )
       end)
 
-    socket = assign(socket, test_task_pid: task_pid)
-    {:noreply, socket}
+    {:noreply, assign(socket, test_task_pid: task_pid)}
   end
 
   def handle_info({:retry_test, test_id}, socket) do
@@ -603,19 +532,14 @@ defmodule ScimTesterWeb.ScimLive do
   end
 
   def handle_info({:capabilities_fetched, {:error, reason}}, socket) do
-    message =
-      case reason do
-        msg when is_binary(msg) -> msg
-        other -> inspect(other)
-      end
-
+    message = if is_binary(reason), do: reason, else: inspect(reason)
     {:noreply, assign(socket, capabilities: {:error, message})}
   end
 
   def handle_info({:schemas_fetched, {:ok, schemas_map}}, socket) do
     enabled_schemas =
-      if Map.has_key?(schemas_map, @enterprise_user_schema_id) do
-        MapSet.put(socket.assigns.enabled_schemas, @enterprise_user_schema_id)
+      if Map.has_key?(schemas_map, SearchAttributes.enterprise_user_schema_id()) do
+        MapSet.put(socket.assigns.enabled_schemas, SearchAttributes.enterprise_user_schema_id())
       else
         socket.assigns.enabled_schemas
       end
@@ -632,349 +556,10 @@ defmodule ScimTesterWeb.ScimLive do
     {:noreply, assign(socket, schemas: nil, schemas_loading: false)}
   end
 
-  def test_definitions, do: ScimTesting.test_definitions()
-
-  def capability_supported?(capabilities, key) do
-    case capabilities do
-      {:ok, body} -> get_in(body, [key, "supported"]) == true
-      _ -> nil
-    end
-  end
-
-  def capabilities_summary(capabilities) do
-    Enum.map(@capability_display_items, fn {key, label} ->
-      {label, capability_supported?(capabilities, key)}
-    end)
-  end
-
-  def auth_schemes(capabilities) do
-    case capabilities do
-      {:ok, body} -> Map.get(body, "authenticationSchemes", [])
-      _ -> []
-    end
-  end
-
-  def test_unsupported_by_provider?(capabilities, test_id) do
-    case capabilities do
-      {:ok, body} ->
-        disabled = ScimTesting.tests_disabled_by_capabilities(body)
-        test_id in disabled
-
-      _ ->
-        false
-    end
-  end
-
-  def filter_operators, do: @filter_operators
-
-  def enterprise_user_schema_id, do: @enterprise_user_schema_id
-
-  def attribute_options(resource_type, schemas, enabled_schemas) do
-    case {schemas, resource_type} do
-      {nil, "Users"} ->
-        [{"User", @fallback_user_attributes ++ @common_attributes}]
-
-      {nil, "Groups"} ->
-        [{"Group", @fallback_group_attributes ++ @common_attributes}]
-
-      {nil, _} ->
-        [{"User", @fallback_user_attributes ++ @common_attributes}]
-
-      {schemas, "Users"} ->
-        groups =
-          if MapSet.member?(enabled_schemas, @user_schema_id) do
-            case Map.get(schemas, @user_schema_id) do
-              nil -> [{"User", @fallback_user_attributes}]
-              schema -> [{"User", schema_to_attributes(schema, nil)}]
-            end
-          else
-            []
-          end
-
-        groups =
-          if MapSet.member?(enabled_schemas, @enterprise_user_schema_id) do
-            case Map.get(schemas, @enterprise_user_schema_id) do
-              nil ->
-                groups
-
-              schema ->
-                groups ++
-                  [{"Enterprise User", schema_to_attributes(schema, @enterprise_user_schema_id)}]
-            end
-          else
-            groups
-          end
-
-        groups ++ [{"Common", @common_attributes}]
-
-      {schemas, "Groups"} ->
-        groups =
-          case Map.get(schemas, @group_schema_id) do
-            nil -> [{"Group", @fallback_group_attributes}]
-            schema -> [{"Group", schema_to_attributes(schema, nil)}]
-          end
-
-        groups ++ [{"Common", @common_attributes}]
-    end
-  end
-
-  defp schema_to_attributes(schema, uri_prefix) do
-    attributes = Map.get(schema, "attributes", [])
-
-    attributes
-    |> Enum.flat_map(fn attr ->
-      name = Map.get(attr, "name", "")
-      type = Map.get(attr, "type", "")
-
-      if type == "complex" do
-        sub_attrs = Map.get(attr, "subAttributes", [])
-
-        sub_attrs
-        |> Enum.reject(fn sub -> Map.get(sub, "name") == "$ref" end)
-        |> Enum.map(fn sub ->
-          sub_name = Map.get(sub, "name", "")
-          path = "#{name}.#{sub_name}"
-          prefixed = if uri_prefix, do: "#{uri_prefix}:#{path}", else: path
-          {prefixed, prefixed}
-        end)
-      else
-        prefixed = if uri_prefix, do: "#{uri_prefix}:#{name}", else: name
-        [{prefixed, prefixed}]
-      end
-    end)
-    |> Enum.sort_by(fn {_value, label} -> label end)
-  end
-
-  def build_request_preview(assigns) do
-    resource_path = if assigns.search_resource_type == "Users", do: "/Users", else: "/Groups"
-    filter = build_filter(assigns.search_filter_rows, assigns.search_combinator)
-
-    params =
-      %{
-        "count" => to_string(assigns.search_page_size),
-        "startIndex" => to_string(assigns.search_start_index)
-      }
-      |> then(fn p ->
-        if filter, do: Map.put(p, "filter", Filter.build(filter)), else: p
-      end)
-
-    query = URI.encode_query(params)
-    path = assigns.base_url <> resource_path
-    "GET #{path}?#{query}"
-  end
-
-  def get_primary_email(resource) do
-    emails = Map.get(resource, "emails", [])
-    primary = Enum.find(emails, List.first(emails), &Map.get(&1, "primary"))
-    if primary, do: Map.get(primary, "value", "-"), else: "-"
-  end
-
-  attr(:test_def, :map, required: true)
-  attr(:test_result, :map, required: true)
-  attr(:is_enabled, :boolean, required: true)
-  attr(:client, :any)
-  attr(:running, :boolean)
-  attr(:current_test, :atom)
-  attr(:capabilities, :any)
-
-  defp test_card(assigns) do
-    ~H"""
-    <div class={[
-      "card bg-base-100 shadow-xl transition-all duration-200 hover:shadow-2xl border border-base-300 border-l-4",
-      case @test_result.status do
-        :pending -> "border-l-base-300"
-        :running -> "border-l-primary"
-        :success -> "border-l-success"
-        :error -> "border-l-error"
-      end,
-      if(!@is_enabled, do: "opacity-50", else: "")
-    ]}>
-      <div class="card-body">
-        <!-- Test Header -->
-        <div class="flex items-start justify-between mb-4">
-          <div class="flex items-center space-x-3">
-            <input
-              type="checkbox"
-              class="checkbox checkbox-primary"
-              checked={@is_enabled}
-              phx-click="toggle_test"
-              phx-value-test-id={@test_def.id}
-              disabled={@running}
-            />
-            <div class={[
-              "w-10 h-10 rounded-lg flex items-center justify-center text-lg",
-              cond do
-                @test_result.status == :running -> "bg-primary/20"
-                @test_result.status == :success -> "bg-success/20"
-                @test_result.status == :error -> "bg-error/20"
-                is_nil(@client) -> "bg-base-200 opacity-50"
-                @running -> "bg-warning/20"
-                true -> "bg-base-300"
-              end
-            ]}>
-              <.icon name={@test_def.icon} />
-            </div>
-
-            <div>
-              <h3 class="card-title text-base">{@test_def.name}</h3>
-
-              <p class="text-sm opacity-70">{@test_def.description}</p>
-
-              <%= if not @is_enabled and test_unsupported_by_provider?(@capabilities, @test_def.id) do %>
-                <p class="text-xs text-warning mt-0.5">
-                  <.icon name="hero-exclamation-triangle" class="size-3 inline" />
-                  Not supported by provider
-                </p>
-              <% end %>
-            </div>
-          </div>
-          <!-- Status Badge -->
-          <div class="flex items-center gap-1">
-            <%= if @test_result.status in [:success, :error] and not @running do %>
-              <button
-                phx-click="retry_test"
-                phx-value-test_id={@test_def.id}
-                class="btn btn-ghost btn-xs btn-circle"
-                title="Re-run this test"
-              >
-                <.icon name="hero-arrow-path" class="size-3.5" />
-              </button>
-            <% end %>
-
-            <div class={["badge", badge_class(@test_result.status, @client, @running)]}>
-              {badge_text(@test_result.status, @client, @running)}
-            </div>
-          </div>
-        </div>
-        <!-- Test Status -->
-        <%= case @test_result.status do %>
-          <% :running -> %>
-            <div class="flex items-center space-x-2 text-primary">
-              <span class="loading loading-spinner loading-xs"></span>
-              <span class="text-sm font-medium">Executing...</span>
-            </div>
-          <% :success -> %>
-            <div class="space-y-2">
-              <div class="flex items-center space-x-2 text-success">
-                <.icon name="hero-check-circle" class="size-4" />
-                <span class="text-sm font-medium">Test passed</span>
-              </div>
-
-              <%= if @test_result.result do %>
-                <details class="collapse bg-base-200">
-                  <summary class="collapse-title text-xs cursor-pointer">View response data</summary>
-
-                  <div class="collapse-content">
-                    <div class="max-h-32 overflow-auto">
-                      <pre class="text-xs whitespace-pre-wrap break-all"><%= truncate_output(@test_result.result) %></pre>
-                    </div>
-
-                    <button
-                      phx-click="show_full_output"
-                      phx-value-test_id={@test_def.id}
-                      phx-value-type="result"
-                      class="btn btn-xs btn-ghost mt-2"
-                    >
-                      View full output
-                    </button>
-                  </div>
-                </details>
-              <% end %>
-            </div>
-          <% :error -> %>
-            <div class="space-y-2">
-              <div class="flex items-center space-x-2 text-error">
-                <.icon name="hero-x-circle" class="size-4" />
-                <span class="text-sm font-medium">Test failed</span>
-              </div>
-
-              <%= if @test_result.error do %>
-                <div class="alert alert-error">
-                  <div class="flex-1 min-w-0">
-                    <div class="max-h-24 overflow-auto">
-                      <p class="text-xs font-mono whitespace-pre-wrap break-all">
-                        {truncate_output(@test_result.error)}
-                      </p>
-                    </div>
-
-                    <button
-                      phx-click="show_full_output"
-                      phx-value-test_id={@test_def.id}
-                      phx-value-type="error"
-                      class="btn btn-xs btn-ghost mt-2"
-                    >
-                      View full output
-                    </button>
-                  </div>
-                </div>
-              <% end %>
-            </div>
-          <% :pending -> %>
-            <%= cond do %>
-              <% is_nil(@client) -> %>
-                <div class="flex items-center space-x-2 opacity-50">
-                  <.icon name="hero-exclamation-triangle" class="size-4" />
-                  <span class="text-sm">Configuration required</span>
-                </div>
-              <% @running -> %>
-                <div class="flex items-center space-x-2 text-warning">
-                  <span class="loading loading-dots loading-xs"></span>
-                  <span class="text-sm">Waiting in queue</span>
-                </div>
-              <% true -> %>
-                <div class="flex items-center space-x-2 opacity-70">
-                  <div class="w-4 h-4 border border-base-300 rounded-full"></div>
-                  <span class="text-sm">Ready to run</span>
-                </div>
-            <% end %>
-        <% end %>
-        <!-- Active Test Indicator -->
-        <%= if @current_test == @test_def.id do %>
-          <div class="mt-3 alert alert-info">
-            <div class="flex items-center space-x-2">
-              <div class="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-              <span class="text-xs font-medium">Currently executing</span>
-            </div>
-          </div>
-        <% end %>
-      </div>
-    </div>
-    """
-  end
-
-  defp badge_class(status, client, running) do
-    cond do
-      status == :running -> "badge-primary"
-      status == :success -> "badge-success"
-      status == :error -> "badge-error"
-      is_nil(client) -> "badge-neutral opacity-50"
-      running -> "badge-warning"
-      true -> "badge-neutral"
-    end
-  end
-
-  defp badge_text(status, client, running) do
-    cond do
-      status == :running -> "Running"
-      status == :success -> "Passed"
-      status == :error -> "Failed"
-      is_nil(client) -> "Not Ready"
-      running -> "Waiting"
-      true -> "Ready"
-    end
-  end
-
-  defp finish_test(socket, test_id, result_map) do
-    socket
-    |> update(:test_results, fn results -> Map.put(results, test_id, result_map) end)
-    |> update(:progress, fn progress -> min(progress + 10, 100) end)
-    |> then(fn s ->
-      if s.assigns.current_test == test_id, do: assign(s, current_test: nil), else: s
-    end)
-  end
+  # --- Private helpers ---
 
   defp apply_config(socket, base_url, bearer_token) do
-    {normalized_base_url, client} = create_scim_client(base_url, bearer_token)
+    {normalized_base_url, client} = Connection.build(base_url, bearer_token)
 
     assign(socket,
       base_url: normalized_base_url,
@@ -984,7 +569,7 @@ defmodule ScimTesterWeb.ScimLive do
       capabilities_applied: false,
       schemas: nil,
       schemas_loading: false,
-      enabled_schemas: MapSet.new([@user_schema_id, @group_schema_id])
+      enabled_schemas: SearchAttributes.default_enabled_schemas()
     )
   end
 
@@ -1020,14 +605,13 @@ defmodule ScimTesterWeb.ScimLive do
 
     Task.start(fn ->
       fetchers = [
-        {:user, fn -> Schemas.user_schema(client) end},
-        {:group, fn -> Schemas.group_schema(client) end},
-        {:enterprise, fn -> Schemas.enterprise_user_schema(client) end}
+        fn -> Schemas.user_schema(client) end,
+        fn -> Schemas.group_schema(client) end,
+        fn -> Schemas.enterprise_user_schema(client) end
       ]
 
       results =
-        fetchers
-        |> Enum.reduce(%{}, fn {_key, fetch_fn}, acc ->
+        Enum.reduce(fetchers, %{}, fn fetch_fn, acc ->
           try do
             case fetch_fn.() do
               {:ok, schema} ->
@@ -1054,25 +638,6 @@ defmodule ScimTesterWeb.ScimLive do
     assign(socket, schemas_loading: true)
   end
 
-  defp create_scim_client("", _bearer_token), do: {"", nil}
-  defp create_scim_client(_base_url, ""), do: {"", nil}
-
-  defp create_scim_client(base_url, bearer_token) do
-    normalized_base_url = normalize_base_url(base_url)
-    client = ScimClient.new(normalized_base_url, bearer_token)
-    {normalized_base_url, client}
-  end
-
-  defp normalize_base_url(base_url) do
-    base_url = String.trim_trailing(base_url, "/")
-
-    if String.ends_with?(base_url, "/scim/v2") do
-      base_url
-    else
-      base_url <> "/scim/v2"
-    end
-  end
-
   defp validate_configuration(socket) do
     cond do
       MapSet.size(socket.assigns.enabled_tests) == 0 ->
@@ -1092,15 +657,17 @@ defmodule ScimTesterWeb.ScimLive do
     end
   end
 
-  defp get_user_schema(nil), do: nil
-  defp get_user_schema(schemas), do: Map.get(schemas, @user_schema_id)
-
-  defp default_attr(resource_type, schemas, enabled_schemas) do
-    case attribute_options(resource_type, schemas, enabled_schemas) do
-      [{_group, [{value, _label} | _]} | _] -> value
-      _ -> if resource_type == "Groups", do: "displayName", else: "userName"
-    end
+  defp finish_test(socket, test_id, result_map) do
+    socket
+    |> update(:test_results, fn results -> Map.put(results, test_id, result_map) end)
+    |> update(:progress, fn progress -> min(progress + 10, 100) end)
+    |> then(fn s ->
+      if s.assigns.current_test == test_id, do: assign(s, current_test: nil), else: s
+    end)
   end
+
+  defp get_user_schema(nil), do: nil
+  defp get_user_schema(schemas), do: Map.get(schemas, SearchAttributes.user_schema_id())
 
   defp maybe_put_param(row, params, param_key, row_key) do
     case Map.fetch(params, param_key) do
@@ -1109,137 +676,9 @@ defmodule ScimTesterWeb.ScimLive do
     end
   end
 
-  defp build_filter(rows, combinator) do
-    valid_rows =
-      Enum.filter(rows, fn row ->
-        row.attribute != "" and row.operator != "" and
-          (row.operator == "pr" or (row.value != nil and row.value != ""))
-      end)
-
-    case valid_rows do
-      [] ->
-        nil
-
-      [single] ->
-        build_single_filter(single)
-
-      [first | rest] ->
-        combine_fn = if combinator == "or", do: &Filter.or1/2, else: &Filter.and1/2
-
-        Enum.reduce(rest, build_single_filter(first), fn row, acc ->
-          combine_fn.(acc, build_single_filter(row))
-        end)
-    end
-  end
-
-  defp build_single_filter(%{attribute: attr, operator: op, value: val}) do
-    filter = Filter.new()
-
-    case op do
-      "eq" -> Filter.equals(filter, attr, val)
-      "ne" -> Filter.not_equal(filter, attr, val)
-      "co" -> Filter.contains(filter, attr, val)
-      "sw" -> Filter.starts_with(filter, attr, val)
-      "ew" -> Filter.ends_with(filter, attr, val)
-      "gt" -> Filter.greater_than(filter, attr, val)
-      "ge" -> Filter.greater_or_equal(filter, attr, val)
-      "lt" -> Filter.less_than(filter, attr, val)
-      "le" -> Filter.less_or_equal(filter, attr, val)
-      "pr" -> Filter.present(filter, attr, nil)
-    end
-  end
-
-  defp log_icon(%{level: :start} = assigns) do
-    ~H"""
-    <.icon name="hero-rocket-launch-solid" class={@class} />
-    """
-  end
-
-  defp log_icon(%{level: :running} = assigns) do
-    ~H"""
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      class="size-4"
-    >
-      <path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M5 13a7 7 0 1 0 14 0a7 7 0 0 0 -14 0" /><path d="M14.5 10.5l-2.5 2.5" /><path d="M17 8l1 -1" /><path d="M14 3h-4" />
-    </svg>
-    """
-  end
-
-  defp log_icon(%{level: :success} = assigns) do
-    ~H"""
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      class="size-4"
-    >
-      <path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 11l3 3l8 -8" /><path d="M20 12v6a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h9" />
-    </svg>
-    """
-  end
-
-  defp log_icon(%{level: :error} = assigns) do
-    ~H"""
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      class="size-4"
-    >
-      <path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14" /><path d="M12 8v4" /><path d="M12 16h.01" />
-    </svg>
-    """
-  end
-
-  defp log_icon(%{level: :warning} = assigns) do
-    ~H"""
-    <.icon name="hero-stop" class={@class} />
-    """
-  end
-
-  defp log_color(:start), do: "text-primary"
-  defp log_color(:running), do: "text-info"
-  defp log_color(:success), do: "text-success"
-  defp log_color(:error), do: "text-error"
-  defp log_color(:warning), do: "text-warning"
-
-  @max_output_length 500
-
-  def truncate_output(data) do
-    output = inspect(data, pretty: true, limit: 50, width: 60)
-
-    if String.length(output) > @max_output_length do
-      String.slice(output, 0, @max_output_length) <> "\n..."
-    else
-      output
-    end
-  end
-
-  defp parse_comma_list(text) when is_binary(text) do
-    text
-    |> String.split(",")
-    |> Enum.map(&String.trim/1)
-    |> Enum.reject(&(&1 == ""))
+  defp existing_test_atom(test_id) do
+    Enum.find_value(ScimTesting.test_definitions(), fn test_def ->
+      if Atom.to_string(test_def.id) == test_id, do: test_def.id
+    end)
   end
 end

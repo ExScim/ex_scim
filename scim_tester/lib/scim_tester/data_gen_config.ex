@@ -48,6 +48,48 @@ defmodule ScimTester.DataGenConfig do
 
   def default, do: %__MODULE__{}
 
+  @doc """
+  Applies a map of form params to the config, ignoring absent fields and
+  rejecting blank scalar/list values so existing settings are preserved.
+  """
+  def apply_params(%__MODULE__{} = config, params) do
+    config
+    |> put_scalar(params, "mode", :mode, &String.to_existing_atom/1)
+    |> put_scalar(params, "email_domain", :email_domain, & &1)
+    |> put_scalar(params, "url_domain", :url_domain, & &1)
+    |> put_list(params, "first_names", :first_names)
+    |> put_list(params, "last_names", :last_names)
+    |> put_list(params, "job_titles", :job_titles)
+  end
+
+  defp put_scalar(config, params, param_key, field, transform) do
+    case Map.get(params, param_key) do
+      nil -> config
+      "" -> config
+      value -> Map.put(config, field, transform.(value))
+    end
+  end
+
+  defp put_list(config, params, param_key, field) do
+    case Map.get(params, param_key) do
+      nil ->
+        config
+
+      text ->
+        case parse_comma_list(text) do
+          [] -> config
+          values -> Map.put(config, field, values)
+        end
+    end
+  end
+
+  defp parse_comma_list(text) when is_binary(text) do
+    text
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
   # --- Name generation ---
 
   def random_first_name(%__MODULE__{mode: :random}), do: generate_syllable_name()
