@@ -21,10 +21,13 @@ in
     inputs.expert.packages.${pkgs.system}.default
   ];
 
-  languages.elixir.enable = true;
-  languages.elixir.package = pkgs-unstable.beam29Packages.elixir_1_20;
-
-  languages.javascript.enable = true;
+  languages = {
+    elixir = {
+      enable = true;
+      package = pkgs-unstable.beam29Packages.elixir_1_20;
+    };
+    javascript.enable = true;
+  };
 
   env.TAILWINDCSS_PATH = "${pkgs.lib.getExe pkgs.tailwindcss_4}";
 
