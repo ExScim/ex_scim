@@ -9,7 +9,7 @@ Add `ex_scim_ecto` to your dependencies:
 ```elixir
 def deps do
   [
-    {:ex_scim_ecto, "~> 0.1"}
+    {:ex_scim_ecto, "~> 0.2"}
   ]
 end
 ```

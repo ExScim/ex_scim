@@ -1,7 +1,7 @@
 defmodule ExScimPhoenix.MixProject do
   use Mix.Project
 
-  @version "0.2.0"
+  @version "0.2.1"
   @source_url "https://github.com/ExScim/ex_scim"
 
   def project do
@@ -54,7 +54,7 @@ defmodule ExScimPhoenix.MixProject do
 
   defp ex_scim_dep do
     if System.get_env("HEX_BUILD") do
-      {:ex_scim, "~> 0.1.0"}
+      {:ex_scim, "~> #{@version}"}
     else
       {:ex_scim, in_umbrella: true}
     end
