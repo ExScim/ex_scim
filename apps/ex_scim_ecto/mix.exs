@@ -54,7 +54,7 @@ defmodule ExScimEcto.MixProject do
 
   defp ex_scim_dep do
     if System.get_env("HEX_BUILD") do
-      {:ex_scim, "~> 0.1.0"}
+      {:ex_scim, "~> #{@version}"}
     else
       {:ex_scim, in_umbrella: true}
     end
