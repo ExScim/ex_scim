@@ -9,7 +9,7 @@ Add `ex_scim_phoenix` to your dependencies:
 ```elixir
 def deps do
   [
-    {:ex_scim_phoenix, "~> 0.1"}
+    {:ex_scim_phoenix, "~> 0.2"}
   ]
 end
 ```
