@@ -5,17 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Upgraded dependencies to their latest compatible versions, including `phoenix`
+(1.8.3 → 1.8.13), `ecto`/`ecto_sql` (3.13 → 3.14), `postgrex` (0.22.0 → 0.22.4),
+`finch` (0.21.0 → 0.23.0), and `decimal` (2.3.0 → 3.1.1)
+
+#### ex_scim_client
+
+- Upgraded `req` (0.5.17 → 0.7.4), clearing a security advisory for the
+previously pinned version
+
 ## [0.2.1] - 2026-09-04
 
 ### Fixed
 
 #### ex_scim_ecto, ex_scim_phoenix
 
-- Dependency on `ex_scim` was pinned to `~> 0.1.0`, preventing the published packages from resolving `ex_scim` 0.2.x; widened to `~> 0.2.0`
+- Dependency on `ex_scim` was pinned to `~> 0.1.0`, preventing the published
+packages from resolving `ex_scim` 0.2.x; widened to `~> 0.2.0`
 
 #### ex_scim_phoenix
 
-- Bulk operation errors now return the underlying reason as an `invalidSyntax` error instead of a generic "Invalid bulk request" message
+- Bulk operation errors now return the underlying reason as an `invalidSyntax`
+error instead of a generic "Invalid bulk request" message
 
 ## [0.2.0] - 2026-04-04
 
