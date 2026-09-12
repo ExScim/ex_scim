@@ -7,39 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+### All packages
 
-- Upgraded dependencies to their latest compatible versions, including `phoenix`
-(1.8.3 → 1.8.13), `ecto`/`ecto_sql` (3.13 → 3.14), `postgrex` (0.22.0 → 0.22.4),
-`finch` (0.21.0 → 0.23.0), and `decimal` (2.3.0 → 3.1.1)
+#### Changed
 
-#### ex_scim_client
+- Dependency upgrades: `phoenix` (1.8.3 -> 1.8.13), `ecto`/`ecto_sql` (3.13 ->
+3.14), `postgrex` (0.22.0 -> 0.22.4), `finch` (0.21.0 -> 0.23.0), `decimal` (2.3.0
+-> 3.1.1)
 
-- Upgraded `req` (0.5.17 → 0.7.4), clearing a security advisory for the
-previously pinned version
+### ex_scim_client
+
+#### Changed
+
+- `req` (0.5.17 -> 0.7.4), resolving [CVE-2026-49756](https://cna.erlef.org/cves/CVE-2026-49756.html)
 
 ## [0.2.1] - 2026-09-04
 
-### Fixed
+### ex_scim_ecto
 
-#### ex_scim_ecto, ex_scim_phoenix
+#### Fixed
 
-- Dependency on `ex_scim` was pinned to `~> 0.1.0`, preventing the published
-packages from resolving `ex_scim` 0.2.x; widened to `~> 0.2.0`
+- `ex_scim` dependency widened from `~> 0.1.0` to `~> 0.2.0`
 
-#### ex_scim_phoenix
+### ex_scim_phoenix
 
-- Bulk operation errors now return the underlying reason as an `invalidSyntax`
-error instead of a generic "Invalid bulk request" message
+#### Fixed
+
+- `ex_scim` dependency widened from `~> 0.1.0` to `~> 0.2.0`
+- Bulk operation errors return underlying reason as `invalidSyntax` error
 
 ## [0.2.0] - 2026-04-04
 
-### Breaking Changes
+### ex_scim
 
-#### ex_scim, ex_scim_phoenix
+#### Breaking Changes
 
-The coarse `scim:write` scope has been removed and replaced with three
-fine-grained scopes:
+- Removed coarse `scim:write` scope; replaced with fine-grained `scim:create`,
+`scim:update`, `scim:delete`
 
 | New scope | Replaces | Covers |
 |---|---|---|
@@ -47,9 +51,9 @@ fine-grained scopes:
 | `scim:update` | `scim:write` | PUT/PATCH `/Users`, PUT/PATCH `/Groups`, PUT/PATCH operations in `/Bulk` |
 | `scim:delete` | `scim:write` | DELETE `/Users`, DELETE `/Groups`, DELETE operations in `/Bulk` |
 
-**Migration:** In your `AuthProvider.Adapter` implementation, replace
-`"scim:write"` in every token or credential scope list with the specific scopes
-that client should have:
+**Migration:** replace `"scim:write"` in every token or credential scope list in
+your `AuthProvider.Adapter` implementation with the specific scopes that client
+should have:
 
 ```elixir
 # Before
@@ -62,38 +66,37 @@ scopes: ["scim:read", "scim:create", "scim:update", "scim:delete"]
 scopes: ["scim:read", "scim:create", "scim:update"]
 ```
 
-#### ex_scim_phoenix - Bulk scope enforcement
+#### Added
 
-Previously, `/Bulk` required `scim:write` upfront and then executed all
-operations unconditionally. Now there is no controller-level scope check on
-`/Bulk`; instead, each operation within the bulk payload is checked individually
-against the caller's scopes. Operations that fail the scope check return a `403`
-operation result and count toward `failOnErrors`.
-
-### Fixed
-
-#### ex_scim
-
-- Preserve `meta_created` across PUT (replace) operations instead of resetting it to now
-
-#### ex_scim_phoenix
-
-- `ETag` response header now correctly populated on POST/PUT/PATCH; controllers were reading `meta.etag` instead of `meta.version` (RFC 7643 3.1)
-- `MeController` no longer raises when `meta.version` is absent
-
-#### examples/provider
-
-- `UserMapper`/`GroupMapper` no longer read `meta.created`/`meta.lastModified` from client payloads (server-assigned fields)
-
-### Added
-
-#### ex_scim
-
-- `get_meta_version/1` checks for a `:meta_version` field on the domain struct before falling back to the `meta_last_modified` timestamp, enabling deterministic ETags without overriding the callback
 - `scim:create`, `scim:update`, `scim:delete` scopes for fine-grained write authorization
 - Per-operation scope enforcement in `ExScim.Operations.Bulk`
+- `get_meta_version/1` deterministic ETag support via `:meta_version` field
 - Scope reference table in `ExScim.Scope` module documentation
 - Authorization Scopes section in the configuration guide
+
+#### Fixed
+
+- Preserve `meta_created` across PUT (replace) operations
+
+### ex_scim_phoenix
+
+#### Breaking Changes
+
+- `/Bulk` scope enforcement now per-operation; failed operations return `403`
+and count toward `failOnErrors`
+
+#### Fixed
+
+- `ETag` response header populated on POST/PUT/PATCH (was reading `meta.etag`
+instead of `meta.version`, RFC 7643 3.1)
+- `MeController` no longer raises when `meta.version` is absent
+
+### examples/provider
+
+#### Fixed
+
+- `UserMapper`/`GroupMapper` no longer read server-assigned
+`meta.created`/`meta.lastModified` from client payloads
 
 ## [0.1.2] - 2026-03-27
 
@@ -101,7 +104,8 @@ operation result and count toward `failOnErrors`.
 
 #### Fixed
 
-- Return HTTP 400 with SCIM validation errors instead of 500 when Ecto changeset validation fails
+- Return HTTP 400 with SCIM validation errors instead of 500 when Ecto changeset
+validation fails
 
 ### scim_tester
 
@@ -113,7 +117,8 @@ operation result and count toward `failOnErrors`.
 
 #### Fixed
 
-- Relax User changeset to only require SCIM-mandatory fields (`userName`, `externalId`, `active`), matching RFC 7643
+- Relax User changeset to only require SCIM-mandatory fields (`userName`,
+`externalId`, `active`), matching RFC 7643
 
 ## [0.1.1] - 2026-02-20
 
@@ -121,16 +126,19 @@ operation result and count toward `failOnErrors`.
 
 #### Added
 
-- `field_mapping` config option for domain-to-database value transformation (e.g., `active: true/false` to `status: "active"/"inactive"`)
+- `field_mapping` config option for domain-to-database value transformation
+(e.g., `active: true/false` to `status: "active"/"inactive"`)
 - Field mapping applied on reads, writes, and filter queries
 
 ### All packages
 
 #### Added
 
-- Hex package metadata (`description`, `package`, `source_url`) to all umbrella apps
+- Hex package metadata (`description`, `package`, `source_url`) to all umbrella
+apps
 - `ex_doc` dependency for documentation generation
-- Conditional `ex_scim` dependency resolution (umbrella vs Hex) in `ex_scim_ecto` and `ex_scim_phoenix`
+- Conditional `ex_scim` dependency resolution (umbrella vs Hex) in
+`ex_scim_ecto` and `ex_scim_phoenix`
 
 #### Improved
 
@@ -180,7 +188,8 @@ operation result and count toward `failOnErrors`.
 - Query filter adapter for Ecto integration
 - Configurable `lookup_key` option on storage adapter
 - Configurable `tenant_key` option for discriminator-column multi-tenancy
-- Automatic tenant scoping on all queries when `tenant_key` and `scope.tenant_id` are set
+- Automatic tenant scoping on all queries when `tenant_key` and
+`scope.tenant_id` are set
 - Tenant ID injection on resource creation
 
 ### ex_scim_phoenix
@@ -189,7 +198,8 @@ operation result and count toward `failOnErrors`.
 
 - Phoenix integration for SCIM
 - SCIM controllers and routing
-- Authentication plugs and middleware (`ExScimPhoenix.Plugs.ScimTenant` for tenant resolution)
+- Authentication plugs and middleware (`ExScimPhoenix.Plugs.ScimTenant` for
+tenant resolution)
 - Scope assignment via `conn.assigns.scim_scope`
 - Request logging
 - Error handling
