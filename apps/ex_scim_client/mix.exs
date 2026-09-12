@@ -41,7 +41,7 @@ defmodule ExScimClient.MixProject do
 
   defp deps do
     [
-      {:req, "~> 0.5.0"},
+      {:req, "~> 0.7.0"},
       {:jason, "~> 1.4"},
       # Req.Test routes stubbed responses through a Plug; required for the HTTP-mocked resource tests.
       {:plug, ">= 0.0.0", only: :test},
