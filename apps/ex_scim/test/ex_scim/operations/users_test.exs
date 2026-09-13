@@ -12,7 +12,7 @@ defmodule ExScim.Operations.UsersTest do
 
   setup do
     # Use test storage that works with atom-keyed domain maps
-    {:ok, _} = ExScim.Operations.UsersTest.TestStorage.start_link()
+    start_supervised!(ExScim.Operations.UsersTest.TestStorage)
     previous_storage = Application.get_env(:ex_scim, :storage_strategy)
     previous_lifecycle = Application.get_env(:ex_scim, :lifecycle_adapter)
     Application.put_env(:ex_scim, :storage_strategy, ExScim.Operations.UsersTest.TestStorage)
@@ -30,8 +30,6 @@ defmodule ExScim.Operations.UsersTest do
       else
         Application.delete_env(:ex_scim, :lifecycle_adapter)
       end
-
-      ExScim.Operations.UsersTest.TestStorage.stop()
     end)
 
     :ok
@@ -472,19 +470,10 @@ defmodule ExScim.Operations.UsersTest do
 
   defmodule TestStorage do
     @behaviour ExScim.Storage.Adapter
+    use Agent
 
-    def start_link do
-      case Agent.start_link(fn -> %{users: %{}, groups: %{}} end, name: __MODULE__) do
-        {:ok, pid} -> {:ok, pid}
-        {:error, {:already_started, pid}} -> {:ok, pid}
-      end
-    end
-
-    def stop do
-      case Process.whereis(__MODULE__) do
-        nil -> :ok
-        pid -> Agent.stop(pid)
-      end
+    def start_link(_opts) do
+      Agent.start_link(fn -> %{users: %{}, groups: %{}} end, name: __MODULE__)
     end
 
     @impl true
