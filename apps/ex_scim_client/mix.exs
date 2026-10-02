@@ -1,7 +1,7 @@
 defmodule ExScimClient.MixProject do
   use Mix.Project
 
-  @version "0.2.2"
+  @version "0.3.0"
   @source_url "https://github.com/ExScim/ex_scim"
 
   def project do
@@ -43,7 +43,6 @@ defmodule ExScimClient.MixProject do
     [
       {:req, "~> 0.7.0"},
       {:jason, "~> 1.4"},
-      # Req.Test routes stubbed responses through a Plug; required for the HTTP-mocked resource tests.
       {:plug, ">= 0.0.0", only: :test},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
