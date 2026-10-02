@@ -35,16 +35,65 @@ defmodule ExScimClient.RequestTest do
       assert {"accept", "application/json"} in request[:headers]
     end
 
-    test "handles nil bearer token" do
+    test "emits no authorization header when no bearer and no auth" do
       client = %Client{
         base_url: "https://api.example.com",
         bearer: nil,
+        auth: nil,
         default_headers: []
       }
 
       request = Request.new(client)
 
-      assert request[:headers] == [{"authorization", "Bearer "}]
+      assert request[:headers] == []
+    end
+  end
+
+  describe "client auth strategies" do
+    test "{:bearer, token} sets a single bearer authorization header" do
+      client = Client.new("https://api.example.com", {:bearer, "tok"})
+
+      request = Request.new(client)
+
+      assert auth_headers(request) == [{"authorization", "Bearer tok"}]
+    end
+
+    test "{:basic, user, pass} sets a single base64 basic authorization header" do
+      client = Client.new("https://api.example.com", {:basic, "user", "pass"})
+
+      request = Request.new(client)
+      expected = Base.encode64("user:pass")
+
+      assert auth_headers(request) == [{"authorization", "Basic #{expected}"}]
+    end
+
+    test "{:header, name, value} sets an arbitrary authorization header" do
+      client = Client.new("https://api.example.com", {:header, "x-api-key", "secret"})
+
+      request = Request.new(client)
+
+      assert {"x-api-key", "secret"} in request[:headers]
+      assert auth_headers(request) == []
+    end
+
+    test ":none emits no authorization header" do
+      client = Client.new("https://api.example.com", :none)
+
+      request = Request.new(client)
+
+      assert auth_headers(request) == []
+    end
+
+    test "bearer token string sets a bearer authorization header" do
+      client = Client.new("https://api.example.com", "tok")
+
+      request = Request.new(client)
+
+      assert auth_headers(request) == [{"authorization", "Bearer tok"}]
+    end
+
+    defp auth_headers(request) do
+      Enum.filter(request[:headers], fn {key, _} -> key == "authorization" end)
     end
   end
 

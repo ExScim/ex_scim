@@ -31,11 +31,36 @@ defmodule ExScimClient.Request do
 
   """
   @spec new(Client.t()) :: t()
-  def new(%Client{base_url: base, bearer: bearer, default_headers: dh}) do
+  def new(%Client{base_url: base, default_headers: headers} = client) do
     [
       base_url: base,
-      headers: [{"authorization", "Bearer #{bearer}"} | dh]
+      headers: auth_headers(client) ++ headers
     ]
+  end
+
+  defp auth_headers(%Client{auth: {:bearer, token}}) do
+    [{"authorization", "Bearer #{token}"}]
+  end
+
+  defp auth_headers(%Client{auth: {:basic, username, password}}) do
+    credentials = Base.encode64("#{username}:#{password}")
+    [{"authorization", "Basic #{credentials}"}]
+  end
+
+  defp auth_headers(%Client{auth: {:header, name, value}}) do
+    [{name, value}]
+  end
+
+  defp auth_headers(%Client{auth: :none}) do
+    []
+  end
+
+  defp auth_headers(%Client{auth: nil, bearer: bearer}) when is_binary(bearer) do
+    [{"authorization", "Bearer #{bearer}"}]
+  end
+
+  defp auth_headers(%Client{}) do
+    []
   end
 
   @doc """
