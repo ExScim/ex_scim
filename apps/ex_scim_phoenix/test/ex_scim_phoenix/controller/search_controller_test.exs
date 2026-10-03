@@ -121,6 +121,22 @@ defmodule ExScimPhoenix.Controller.SearchControllerTest do
     end
   end
 
+  describe "authorization" do
+    for path <- ["/Users/.search", "/Groups/.search", "/.search"] do
+      test "#{path} without scim:read returns 403" do
+        conn = post(auth_conn("token-me"), unquote(path), search_request())
+        body = json_response(conn, 403)
+
+        assert body["scimType"] == "insufficientScope"
+      end
+
+      test "#{path} with only scim:read succeeds" do
+        conn = post(auth_conn("token-readonly"), unquote(path), search_request())
+        assert json_response(conn, 200)["schemas"] == [@list_schema]
+      end
+    end
+  end
+
   # --- helpers ---
 
   defp search_request(extra \\ %{}) do

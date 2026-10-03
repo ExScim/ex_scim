@@ -21,6 +21,11 @@ defmodule ExScimPhoenix.Controller.SearchController do
   @scim_search_request_schema "urn:ietf:params:scim:api:messages:2.0:SearchRequest"
   @scim_list_response_schema "urn:ietf:params:scim:api:messages:2.0:ListResponse"
 
+  plug(
+    ExScimPhoenix.Plugs.RequireScopes,
+    [scopes: ["scim:read"]] when action in [:search, :search_all]
+  )
+
   @doc "Performs a resource-specific search (e.g. POST /Users/.search)."
   def search(conn, search_params) do
     resource_type = determine_resource_type(conn.request_path)
