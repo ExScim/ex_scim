@@ -6,14 +6,14 @@ defmodule Provider.Accounts.Group do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   schema "groups" do
-    field :active, :boolean, default: false
-    field :description, :string
-    field :display_name, :string
-    field :external_id, :string
-    field :meta_created, :utc_datetime_usec
-    field :meta_last_modified, :utc_datetime_usec
+    field(:active, :boolean, default: false)
+    field(:description, :string)
+    field(:display_name, :string)
+    field(:external_id, :string)
+    field(:meta_created, :utc_datetime_usec)
+    field(:meta_last_modified, :utc_datetime_usec)
 
-    many_to_many :users, User, join_through: "group_memberships"
+    many_to_many(:users, User, join_through: "group_memberships")
 
     timestamps(type: :utc_datetime)
   end
