@@ -7,7 +7,7 @@
 }:
 
 let
-  pkgs-unstable = import inputs.nixpkgs-unstable { system = pkgs.stdenv.system; };
+  pkgs-unstable = import inputs.nixpkgs-unstable { system = pkgs.stdenv.hostPlatform.system; };
 in
 {
   packages = [
@@ -18,7 +18,7 @@ in
     pkgs.nodejs
     pkgs.vscode-langservers-extracted
     pkgs.prettier
-    inputs.expert.packages.${pkgs.system}.default
+    inputs.expert.packages.${pkgs.stdenv.hostPlatform.system}.default
   ];
 
   languages = {
