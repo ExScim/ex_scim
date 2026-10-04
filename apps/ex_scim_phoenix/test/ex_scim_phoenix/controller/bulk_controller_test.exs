@@ -99,7 +99,7 @@ defmodule ExScimPhoenix.Controller.BulkControllerTest do
 
     # SD-8: request-level validation failures (including payload too large) are
     # returned by the controller as 400 invalidSyntax, not 413 Payload Too Large
-    # as RFC 7644 §3.7.4 suggests for oversize bulk payloads.
+    # as RFC 7644 Section 3.7.4 suggests for oversize bulk payloads.
     test "payload over the configured max returns 400, not 413 (SD-8)" do
       Application.put_env(:ex_scim, :bulk_max_payload_size, 10)
       request = bulk_request([post_op("q1", "alice")])

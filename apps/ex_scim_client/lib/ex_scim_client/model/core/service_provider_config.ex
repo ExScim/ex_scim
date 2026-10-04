@@ -1,6 +1,6 @@
 defmodule ExScimClient.Model.Core.ServiceProviderConfig do
   @moduledoc """
-  Describes the SCIM features supported by the service provider (RFC 7644 §4)
+  Describes the SCIM features supported by the service provider (RFC 7644 Section 4)
   """
 
   @derive JSON.Encoder

@@ -1,6 +1,6 @@
 defmodule ExScimClient.Model.Infrastructure.Error do
   @moduledoc """
-  Standard SCIM error representation (RFC 7644 §3.12)
+  Standard SCIM error representation (RFC 7644 Section 3.12)
   """
 
   @derive JSON.Encoder

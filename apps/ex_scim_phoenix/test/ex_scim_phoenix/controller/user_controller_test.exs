@@ -153,7 +153,7 @@ defmodule ExScimPhoenix.Controller.UserControllerTest do
 
     # SD-4: the Operations layer calls to_scim/2 without a :location opt, so
     # meta.location is nil and the controller emits no Location header, despite
-    # RFC 7644 §3.3 (SHOULD). Documented as current behavior pending a fix.
+    # RFC 7644 Section 3.3 (SHOULD). Documented as current behavior pending a fix.
     test "does NOT set a Location header (SD-4, current behavior)" do
       conn = post(auth_conn(), "/Users", scim_user("john.doe"))
       assert json_response(conn, 201)
