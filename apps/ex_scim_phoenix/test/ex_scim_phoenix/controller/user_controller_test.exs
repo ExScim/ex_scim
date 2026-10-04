@@ -249,12 +249,7 @@ defmodule ExScimPhoenix.Controller.UserControllerTest do
       assert json_response(conn, 404)["schemas"] == [@error_schema]
     end
 
-    # SD-5: the Patcher returns a bare string error (e.g. "Unsupported op: ...")
-    # for malformed ops. The controller has clauses for :invalid_patch_operation
-    # / :no_target / :invalid_path atoms (which the Patcher never emits) plus a
-    # list-of-errors clause; a string falls through to the catch-all -> 500.
-    # Ideally a malformed patch op would be a 400 invalidSyntax.
-    test "malformed patch op currently returns 500 (SD-5, current behavior)" do
+    test "rejects an unsupported op with 400 invalidSyntax" do
       created = create_user!("alice")
 
       patch = %{
@@ -263,10 +258,11 @@ defmodule ExScimPhoenix.Controller.UserControllerTest do
       }
 
       conn = patch(auth_conn(), "/Users/#{created["id"]}", patch)
-      body = json_response(conn, 500)
+      body = json_response(conn, 400)
 
       assert body["schemas"] == [@error_schema]
-      assert body["status"] == "500"
+      assert body["scimType"] == "invalidSyntax"
+      assert body["detail"] =~ "Unsupported op"
     end
   end
 

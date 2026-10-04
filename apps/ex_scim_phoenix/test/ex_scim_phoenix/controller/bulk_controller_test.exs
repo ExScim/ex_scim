@@ -19,6 +19,7 @@ defmodule ExScimPhoenix.Controller.BulkControllerTest do
     prev_auth = Application.get_env(:ex_scim, :auth_provider_adapter)
     prev_lifecycle = Application.get_env(:ex_scim, :lifecycle_adapter)
     prev_max_payload = Application.get_env(:ex_scim, :bulk_max_payload_size)
+    prev_max_operations = Application.get_env(:ex_scim, :bulk_max_operations)
 
     Application.put_env(:ex_scim, :storage_strategy, TestStorage)
     Application.put_env(:ex_scim, :auth_provider_adapter, ExScimPhoenix.Test.TestAuth)
@@ -29,6 +30,7 @@ defmodule ExScimPhoenix.Controller.BulkControllerTest do
       restore(:auth_provider_adapter, prev_auth)
       restore(:lifecycle_adapter, prev_lifecycle)
       restore(:bulk_max_payload_size, prev_max_payload)
+      restore(:bulk_max_operations, prev_max_operations)
       TestStorage.stop()
     end)
 
@@ -97,18 +99,26 @@ defmodule ExScimPhoenix.Controller.BulkControllerTest do
       assert hd(body["Operations"])["status"] != "201"
     end
 
-    # SD-8: request-level validation failures (including payload too large) are
-    # returned by the controller as 400 invalidSyntax, not 413 Payload Too Large
-    # as RFC 7644 Section 3.7.4 suggests for oversize bulk payloads.
-    test "payload over the configured max returns 400, not 413 (SD-8)" do
+    test "payload over the configured max returns 413" do
       Application.put_env(:ex_scim, :bulk_max_payload_size, 10)
       request = bulk_request([post_op("q1", "alice")])
 
       conn = post(auth_conn(), "/Bulk", request)
-      body = json_response(conn, 400)
+      body = json_response(conn, 413)
 
-      assert body["scimType"] == "invalidSyntax"
+      refute Map.has_key?(body, "scimType")
       assert body["detail"] =~ "Payload too large"
+    end
+
+    test "operations over the configured max returns 413" do
+      Application.put_env(:ex_scim, :bulk_max_operations, 1)
+      request = bulk_request([post_op("q1", "alice"), post_op("q2", "bob")])
+
+      conn = post(auth_conn(), "/Bulk", request)
+      body = json_response(conn, 413)
+
+      refute Map.has_key?(body, "scimType")
+      assert body["detail"] =~ "Too many operations"
     end
 
     test "requires authentication" do

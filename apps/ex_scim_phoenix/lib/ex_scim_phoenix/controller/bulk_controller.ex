@@ -45,6 +45,9 @@ defmodule ExScimPhoenix.Controller.BulkController do
         |> put_status(status_code)
         |> json(bulk_response)
 
+      {:error, {:too_large, message}} ->
+        send_scim_error(conn, 413, nil, message)
+
       {:error, reason} ->
         send_scim_error(conn, :bad_request, :invalid_syntax, reason)
     end

@@ -83,8 +83,10 @@ defmodule ExScim.BulkTest do
         "Operations" => operations
       }
 
-      assert {:error, error_msg} = Bulk.process_bulk_request(invalid_request, @test_caller)
-      assert String.contains?(error_msg, "Too many operations")
+      assert {:error, {:too_large, error_msg}} =
+               Bulk.process_bulk_request(invalid_request, @test_caller)
+
+      assert error_msg =~ "Too many operations"
     end
 
     test "processes valid bulk request with POST operations" do

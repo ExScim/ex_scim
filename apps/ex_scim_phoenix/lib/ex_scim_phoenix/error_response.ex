@@ -13,7 +13,7 @@ defmodule ExScimPhoenix.ErrorResponse do
   Sends a SCIM-compliant error response using core ExScim.Error logic.
 
   * `status` - can be an atom (`:bad_request`) or integer (400)
-  * `scim_type` - SCIM error type atom from ExScim.Error.scim_type()
+  * `scim_type` - SCIM error type atom from ExScim.Error.scim_type(), or `nil` to omit `scimType`
   * `detail` - human-readable error description
   """
   @spec send_scim_error(Plug.Conn.t(), atom() | integer(), atom(), String.t()) :: Plug.Conn.t()

@@ -13,10 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `ExScim.Authorization.Adapter` behaviour and `:authorization_adapter` config
 - `ExScim.Authorization.DefaultPolicy` with the `scim:*` scopes
+- `ExScim.Resources.PatchError` exception
 
 #### Changed
 
 - `/Bulk` per-operation authorization via the configured policy
+- `Users.Patcher.patch/2` and `Groups.Patcher.patch/2` error tuple `{:invalid_patch, scim_type, message}`
+- `Operations.Bulk` error tuple `{:too_large, message}` for `:max_operations` and `:max_payload_size`
+
+#### Fixed
+
+- PATCH op on a non-traversable path returning `noTarget`
 
 ### ex_scim_phoenix
 
@@ -31,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Fixed
 
 -  Enforce `scim:read` scope on `/.search`, `/Users/.search`, `/Groups/.search`
+- 400 on malformed PATCH ops for `/Users`, `/Groups`, `/Me`
+- 400 `invalidFilter` on invalid `/.search` filter
+- `/Me` self-registration with an `email` JWT claim
+- 413 on `/Bulk` over `maxOperations` or `maxPayloadSize`
 
 ## [0.3.0] - 2026-10-01
 

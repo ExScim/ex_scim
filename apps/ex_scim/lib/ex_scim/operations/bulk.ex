@@ -52,7 +52,8 @@ defmodule ExScim.Operations.Bulk do
   ## Returns
 
     * `{:ok, bulk_response}` - Bulk response with operation results
-    * `{:error, reason}` - Error if bulk request is invalid
+    * `{:error, {:too_large, message}}` - `:max_operations` or `:max_payload_size` exceeded
+    * `{:error, message}` - Error if bulk request is invalid
   """
   def process_bulk_request(bulk_request, caller, opts \\ []) do
     with {:ok, validated_request} <- validate_bulk_request(bulk_request, opts),
@@ -90,10 +91,10 @@ defmodule ExScim.Operations.Bulk do
         {:error, "Operations array cannot be empty"}
 
       length(bulk_request["Operations"]) > max_operations ->
-        {:error, "Too many operations. Maximum allowed: #{max_operations}"}
+        {:error, {:too_large, "Too many operations. Maximum allowed: #{max_operations}"}}
 
       estimate_payload_size(bulk_request) > max_payload_size ->
-        {:error, "Payload too large. Maximum allowed: #{max_payload_size} bytes"}
+        {:error, {:too_large, "Payload too large. Maximum allowed: #{max_payload_size} bytes"}}
 
       true ->
         {:ok, bulk_request}
@@ -519,6 +520,15 @@ defmodule ExScim.Operations.Bulk do
   end
 
   defp parse_path(_), do: {:unknown, nil}
+
+  defp format_error_response({:invalid_patch, scim_type, message}, status) do
+    %{
+      "schemas" => ["urn:ietf:params:scim:api:messages:2.0:Error"],
+      "scimType" => ExScim.Error.scim_type_to_string(scim_type),
+      "detail" => message,
+      "status" => status
+    }
+  end
 
   defp format_error_response(reason, status) when is_binary(reason) do
     %{

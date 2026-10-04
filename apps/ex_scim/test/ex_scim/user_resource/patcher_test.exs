@@ -243,8 +243,7 @@ defmodule ExScim.Users.PatcherTest do
       end
     end
 
-    test "returns error for runtime exceptions" do
-      # This should cause a runtime error during patching
+    test "returns noTarget for a path through missing attributes" do
       patch_ops = %{
         "Operations" => [
           %{
@@ -255,8 +254,7 @@ defmodule ExScim.Users.PatcherTest do
         ]
       }
 
-      # Should handle the error gracefully
-      assert {:error, _reason} = Patcher.patch(%{}, patch_ops)
+      assert {:error, {:invalid_patch, :no_target, _}} = Patcher.patch(%{}, patch_ops)
     end
   end
 
@@ -480,7 +478,9 @@ defmodule ExScim.Users.PatcherTest do
       ]
 
       for {invalid_patch, expected_error_content} <- test_cases do
-        assert {:error, error_message} = Patcher.patch(user_map, invalid_patch)
+        assert {:error, {:invalid_patch, :invalid_syntax, error_message}} =
+                 Patcher.patch(user_map, invalid_patch)
+
         assert String.contains?(error_message, expected_error_content)
       end
     end
