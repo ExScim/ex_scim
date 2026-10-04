@@ -12,6 +12,7 @@ defmodule ExScimPhoenix.Controller.SearchController do
 
   alias ExScim.Operations.Users
   alias ExScim.Operations.Groups
+  alias ExScimPhoenix.Plugs.Authorize
 
   # Default pagination values
   @default_start_index 1
@@ -21,10 +22,7 @@ defmodule ExScimPhoenix.Controller.SearchController do
   @scim_search_request_schema "urn:ietf:params:scim:api:messages:2.0:SearchRequest"
   @scim_list_response_schema "urn:ietf:params:scim:api:messages:2.0:ListResponse"
 
-  plug(
-    ExScimPhoenix.Plugs.RequireScopes,
-    [scopes: ["scim:read"]] when action in [:search, :search_all]
-  )
+  plug(:authorize_search)
 
   @doc "Performs a resource-specific search (e.g. POST /Users/.search)."
   def search(conn, search_params) do
@@ -262,6 +260,19 @@ defmodule ExScimPhoenix.Controller.SearchController do
     else
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp authorize_search(conn, _opts) do
+    resources =
+      case action_name(conn) do
+        :search_all -> [:users, :groups]
+        :search -> [determine_resource_type(conn.request_path)] -- [:unknown]
+      end
+
+    Enum.reduce_while(resources, conn, fn resource, conn ->
+      conn = Authorize.authorize(conn, resource, :read)
+      if conn.halted, do: {:halt, conn}, else: {:cont, conn}
+    end)
   end
 
   defp determine_resource_type(path) do

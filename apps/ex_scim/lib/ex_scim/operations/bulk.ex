@@ -4,7 +4,7 @@ defmodule ExScim.Operations.Bulk do
   alias ExScim.Operations.Users
   alias ExScim.Operations.Groups
   alias ExScim.Config
-  alias ExScim.Scope
+  alias ExScim.Authorization
 
   @bulk_request_schema "urn:ietf:params:scim:api:messages:2.0:BulkRequest"
   @bulk_response_schema "urn:ietf:params:scim:api:messages:2.0:BulkResponse"
@@ -185,35 +185,35 @@ defmodule ExScim.Operations.Bulk do
     {:ok, Enum.reverse(response_operations)}
   end
 
-  @method_scopes %{
-    "POST" => "scim:create",
-    "PUT" => "scim:update",
-    "PATCH" => "scim:update",
-    "DELETE" => "scim:delete"
+  @method_actions %{
+    "POST" => :create,
+    "PUT" => :update,
+    "PATCH" => :update,
+    "DELETE" => :delete
   }
 
   defp execute_single_operation(operation, caller, base_url) do
-    required_scope = Map.fetch!(@method_scopes, operation.method)
+    case authorize_operation(operation, caller) do
+      :ok ->
+        case operation.method do
+          "POST" -> handle_post_operation(operation, caller, base_url)
+          "PUT" -> handle_put_operation(operation, caller, base_url)
+          "PATCH" -> handle_patch_operation(operation, caller, base_url)
+          "DELETE" -> handle_delete_operation(operation, caller, base_url)
+        end
 
-    if Scope.has_scope?(caller, required_scope) do
-      case operation.method do
-        "POST" -> handle_post_operation(operation, caller, base_url)
-        "PUT" -> handle_put_operation(operation, caller, base_url)
-        "PATCH" -> handle_patch_operation(operation, caller, base_url)
-        "DELETE" -> handle_delete_operation(operation, caller, base_url)
-      end
-    else
-      %{
-        "method" => operation.method,
-        "bulkId" => operation.bulk_id,
-        "status" => "403",
-        "response" => %{
-          "schemas" => ["urn:ietf:params:scim:api:messages:2.0:Error"],
-          "scimType" => "insufficient_scope",
-          "detail" => "Missing required scope: #{required_scope}",
-          "status" => "403"
+      {:error, denial} ->
+        %{
+          "method" => operation.method,
+          "bulkId" => operation.bulk_id,
+          "status" => "403",
+          "response" => %{
+            "schemas" => ["urn:ietf:params:scim:api:messages:2.0:Error"],
+            "scimType" => "insufficient_scope",
+            "detail" => Authorization.denial_detail(denial),
+            "status" => "403"
+          }
         }
-      }
     end
   rescue
     error ->
@@ -227,6 +227,17 @@ defmodule ExScim.Operations.Bulk do
           "status" => "500"
         }
       }
+  end
+
+  defp authorize_operation(operation, caller) do
+    case parse_path(operation.path) do
+      {:unknown, _} ->
+        :ok
+
+      {resource_type, _} ->
+        action = Map.fetch!(@method_actions, operation.method)
+        Authorization.authorize(caller, resource_type, action)
+    end
   end
 
   defp handle_post_operation(operation, caller, base_url) do

@@ -1,9 +1,7 @@
 defmodule ExScimPhoenix.Plugs.RequireScopes do
   @moduledoc """
-  Ensures the authenticated SCIM scope has the required authorization scopes.
-
-  Reads the `:scopes` option (a list of scope strings). If any required scope
-  is missing from `conn.assigns.scim_scope`, the request is halted with a 403.
+  Ensures the literal scope strings are provided.
+  Does not consult the authorization policy.
   """
 
   import Plug.Conn

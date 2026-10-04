@@ -13,23 +13,23 @@ defmodule ExScimPhoenix.Controller.UserController do
   alias ExScim.Operations.Users
 
   plug(
-    ExScimPhoenix.Plugs.RequireScopes,
-    [scopes: ["scim:read"]] when action in [:index, :show, :search]
+    ExScimPhoenix.Plugs.Authorize,
+    [resource: :users, action: :read] when action in [:index, :show, :search]
   )
 
   plug(
-    ExScimPhoenix.Plugs.RequireScopes,
-    [scopes: ["scim:create"]] when action in [:create]
+    ExScimPhoenix.Plugs.Authorize,
+    [resource: :users, action: :create] when action in [:create]
   )
 
   plug(
-    ExScimPhoenix.Plugs.RequireScopes,
-    [scopes: ["scim:update"]] when action in [:update, :patch]
+    ExScimPhoenix.Plugs.Authorize,
+    [resource: :users, action: :update] when action in [:update, :patch]
   )
 
   plug(
-    ExScimPhoenix.Plugs.RequireScopes,
-    [scopes: ["scim:delete"]] when action in [:delete]
+    ExScimPhoenix.Plugs.Authorize,
+    [resource: :users, action: :delete] when action in [:delete]
   )
 
   @scim_list_response_schema "urn:ietf:params:scim:api:messages:2.0:ListResponse"

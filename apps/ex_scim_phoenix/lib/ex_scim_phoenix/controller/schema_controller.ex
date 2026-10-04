@@ -9,8 +9,8 @@ defmodule ExScimPhoenix.Controller.SchemaController do
   alias ExScim.Schema.Repository
 
   plug(
-    ExScimPhoenix.Plugs.RequireScopes,
-    [scopes: ["scim:read"]] when action in [:index, :show]
+    ExScimPhoenix.Plugs.Authorize,
+    [resource: :schemas, action: :read] when action in [:index, :show]
   )
 
   @doc false

@@ -10,7 +10,10 @@ defmodule ExScimPhoenix.Controller.ServiceProviderConfigController do
 
   alias ExScim.Config
 
-  plug(ExScimPhoenix.Plugs.RequireScopes, [scopes: ["scim:read"]] when action in [:show])
+  plug(
+    ExScimPhoenix.Plugs.Authorize,
+    [resource: :service_provider_config, action: :read] when action in [:show]
+  )
 
   @doc false
   def show(conn, _params) do

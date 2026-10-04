@@ -7,7 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ex_scim
+
+#### Added
+
+- `ExScim.Authorization.Adapter` behaviour and `:authorization_adapter` config
+- `ExScim.Authorization.DefaultPolicy` with the `scim:*` scopes
+
+#### Changed
+
+- `/Bulk` per-operation authorization via the configured policy
+
 ### ex_scim_phoenix
+
+#### Added
+
+- `ExScimPhoenix.Plugs.Authorize` plug
+
+#### Changed
+
+- Endpoint authorization via the configured policy
 
 #### Fixed
 

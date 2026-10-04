@@ -6,11 +6,12 @@ defmodule ExScim.Scope do
 
   ## Authorization Scopes
 
-  The following standard scopes are enforced by `ExScimPhoenix`:
+  `:scopes` is checked by the configured authorization policy (see `ExScim.Authorization.Adapter`).
+  The default policy (see `ExScim.Authorization.DefaultPolicy`) enforces the following standard scopes:
 
   | Scope | Endpoints | Actions |
   |---|---|---|
-  | `scim:read` | `/Users`, `/Groups`, `/Schemas`, `/ResourceTypes`, `/ServiceProviderConfig` | GET (list, show, search) |
+  | `scim:read` | `/Users`, `/Groups`, `/Schemas`, `/ServiceProviderConfig` | GET (list, show, search) |
   | `scim:create` | `/Users`, `/Groups`, `/Bulk` (POST operations) | POST |
   | `scim:update` | `/Users`, `/Groups`, `/Bulk` (PUT/PATCH operations) | PUT, PATCH |
   | `scim:delete` | `/Users`, `/Groups`, `/Bulk` (DELETE operations) | DELETE |

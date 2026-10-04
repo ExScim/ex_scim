@@ -11,6 +11,7 @@ All options are set under `config :ex_scim`.
 | `:base_url` | `"http://localhost:4000"` | Base URL for SCIM endpoints. Falls back to `SCIM_BASE_URL` env var. |
 | `:storage_strategy` | `ExScim.Storage.EtsStorage` | Module implementing `ExScim.Storage.Adapter` |
 | `:auth_provider_adapter` | *required* | Module implementing `ExScim.Auth.AuthProvider.Adapter` |
+| `:authorization_adapter` | `ExScim.Authorization.DefaultPolicy` | Module implementing `ExScim.Authorization.Adapter` |
 
 ### Resource Mapping
 
@@ -90,13 +91,15 @@ Reported in the ServiceProviderConfig discovery endpoint.
 
 ## Authorization Scopes
 
-Scopes are strings in the `ExScim.Scope` struct's `:scopes` list, populated by your `AuthProvider.Adapter` when validating a token or credentials.
+Scopes are strings in the `ExScim.Scope` struct's `:scopes` list, populated by your `AuthProvider.Adapter` when validating a token or credentials. Every endpoint and every bulk operation asks the configured authorization policy whether the scope may perform an action (`:read`, `:create`, `:update`, `:delete`) on a resource (`:users`, `:groups`, `:me`, `:schemas`, `:resource_types`, `:service_provider_config`).
+
+The default policy, `ExScim.Authorization.DefaultPolicy`, expects the `scim:*` scopes below. To use the scopes your identity platform issues instead, see [Custom policies](#custom-policies).
 
 ### Standard scopes
 
 | Scope | Endpoints | Actions |
 |---|---|---|
-| `scim:read` | `/Users`, `/Groups`, `/Schemas`, `/ResourceTypes`, `/ServiceProviderConfig` | GET (list, show, search) |
+| `scim:read` | `/Users`, `/Groups`, `/Schemas`, `/ServiceProviderConfig` | GET (list, show, search) |
 | `scim:create` | `/Users`, `/Groups`, `/Bulk` (POST operations) | POST |
 | `scim:update` | `/Users`, `/Groups`, `/Bulk` (PUT/PATCH operations) | PUT, PATCH |
 | `scim:delete` | `/Users`, `/Groups`, `/Bulk` (DELETE operations) | DELETE |
@@ -129,6 +132,42 @@ scopes: ["scim:read", "scim:create", "scim:update", "scim:delete"]
 # Self-service user (Me endpoint only)
 scopes: ["scim:me:read", "scim:me:update"]
 ```
+
+`/ResourceTypes` requires no scope.
+
+### Custom policies
+
+Implement `ExScim.Authorization.Adapter` to authorize against other scope names, authorize Users and Groups separately, or decide based on token claims in `scope.metadata`:
+
+```elixir
+defmodule MyApp.ScimPolicy do
+  @behaviour ExScim.Authorization.Adapter
+
+  alias ExScim.Authorization.DefaultPolicy
+  alias ExScim.Scope
+
+  @impl true
+  def authorize(scope, resource, :read) when resource in [:users, :groups],
+    do: require_scope(scope, "directory.#{resource}.read")
+
+  def authorize(scope, resource, _action) when resource in [:users, :groups],
+    do: require_scope(scope, "directory.#{resource}.write")
+
+  def authorize(scope, resource, action), do: DefaultPolicy.authorize(scope, resource, action)
+
+  defp require_scope(scope, required) do
+    if Scope.has_scope?(scope, required),
+      do: :ok,
+      else: {:error, {:missing_scopes, [required]}}
+  end
+end
+```
+
+```elixir
+config :ex_scim, authorization_adapter: MyApp.ScimPolicy
+```
+
+Denials return `403`. `{:error, {:missing_scopes, scopes}}` lists the missing scopes in the error detail; any other reason yields a generic detail. Cross-resource search (`POST /.search`) requires `:read` on both `:users` and `:groups`.
 
 ## Multi-Tenancy
 
@@ -216,21 +255,21 @@ All endpoints are served under the scope you configure (typically `/scim/v2`).
 
 | Method | Path | Description | RFC |
 |--------|------|-------------|-----|
-| `GET` | `/Users` | List with filtering, sorting, pagination | [§3.4.2](https://www.rfc-editor.org/rfc/rfc7644#section-3.4.2) |
-| `POST` | `/Users` | Create | [§3.3](https://www.rfc-editor.org/rfc/rfc7644#section-3.3) |
-| `GET` | `/Users/{id}` | Fetch by ID | [§3.4.1](https://www.rfc-editor.org/rfc/rfc7644#section-3.4.1) |
-| `PUT` | `/Users/{id}` | Replace | [§3.5.1](https://www.rfc-editor.org/rfc/rfc7644#section-3.5.1) |
-| `PATCH` | `/Users/{id}` | Partial update (JSON Patch) | [§3.5.2](https://www.rfc-editor.org/rfc/rfc7644#section-3.5.2) |
-| `DELETE` | `/Users/{id}` | Delete | [§3.6](https://www.rfc-editor.org/rfc/rfc7644#section-3.6) |
+| `GET` | `/Users` | List with filtering, sorting, pagination | [RFC 7644 Section 3.4.2](https://www.rfc-editor.org/rfc/rfc7644#section-3.4.2) |
+| `POST` | `/Users` | Create | [RFC 7644 Section 3.3](https://www.rfc-editor.org/rfc/rfc7644#section-3.3) |
+| `GET` | `/Users/{id}` | Fetch by ID | [RFC 7644 Section 3.4.1](https://www.rfc-editor.org/rfc/rfc7644#section-3.4.1) |
+| `PUT` | `/Users/{id}` | Replace | [RFC 7644 Section 3.5.1](https://www.rfc-editor.org/rfc/rfc7644#section-3.5.1) |
+| `PATCH` | `/Users/{id}` | Partial update (JSON Patch) | [RFC 7644 Section 3.5.2](https://www.rfc-editor.org/rfc/rfc7644#section-3.5.2) |
+| `DELETE` | `/Users/{id}` | Delete | [RFC 7644 Section 3.6](https://www.rfc-editor.org/rfc/rfc7644#section-3.6) |
 
-Groups and Me follow the same pattern. See [RFC 7644 §3.11](https://www.rfc-editor.org/rfc/rfc7644#section-3.11) for Me endpoint details.
+Groups and Me follow the same pattern. See [RFC 7644 Section 3.11](https://www.rfc-editor.org/rfc/rfc7644#section-3.11) for Me endpoint details.
 
 ### Other
 
 | Method | Path | Description | RFC |
 |--------|------|-------------|-----|
-| `POST` | `/.search` | Cross-resource search | [§3.4.3](https://www.rfc-editor.org/rfc/rfc7644#section-3.4.3) |
-| `POST` | `/Bulk` | Bulk operations | [§3.7](https://www.rfc-editor.org/rfc/rfc7644#section-3.7) |
-| `GET` | `/ServiceProviderConfig` | Server capabilities | [§4](https://www.rfc-editor.org/rfc/rfc7644#section-4) |
-| `GET` | `/ResourceTypes` | Supported resource types | [§4](https://www.rfc-editor.org/rfc/rfc7644#section-4) |
-| `GET` | `/Schemas` | Schema definitions | [§4](https://www.rfc-editor.org/rfc/rfc7644#section-4) |
+| `POST` | `/.search` | Cross-resource search | [RFC 7644 Section 3.4.3](https://www.rfc-editor.org/rfc/rfc7644#section-3.4.3) |
+| `POST` | `/Bulk` | Bulk operations | [RFC 7644 Section 3.7](https://www.rfc-editor.org/rfc/rfc7644#section-3.7) |
+| `GET` | `/ServiceProviderConfig` | Server capabilities | [RFC 7644 Section 4](https://www.rfc-editor.org/rfc/rfc7644#section-4) |
+| `GET` | `/ResourceTypes` | Supported resource types | [RFC 7644 Section 4](https://www.rfc-editor.org/rfc/rfc7644#section-4) |
+| `GET` | `/Schemas` | Schema definitions | [RFC 7644 Section 4](https://www.rfc-editor.org/rfc/rfc7644#section-4) |

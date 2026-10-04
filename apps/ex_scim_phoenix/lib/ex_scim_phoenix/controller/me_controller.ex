@@ -14,15 +14,15 @@ defmodule ExScimPhoenix.Controller.MeController do
   alias ExScim.Config
   import ExScimPhoenix.ErrorResponse
 
-  plug(ExScimPhoenix.Plugs.RequireScopes, [scopes: "scim:me:read"] when action in [:show])
-  plug(ExScimPhoenix.Plugs.RequireScopes, [scopes: "scim:me:create"] when action in [:create])
+  plug(ExScimPhoenix.Plugs.Authorize, [resource: :me, action: :read] when action in [:show])
+  plug(ExScimPhoenix.Plugs.Authorize, [resource: :me, action: :create] when action in [:create])
 
   plug(
-    ExScimPhoenix.Plugs.RequireScopes,
-    [scopes: ["scim:me:update"]] when action in [:update, :patch]
+    ExScimPhoenix.Plugs.Authorize,
+    [resource: :me, action: :update] when action in [:update, :patch]
   )
 
-  plug(ExScimPhoenix.Plugs.RequireScopes, [scopes: "scim:me:delete"] when action in [:delete])
+  plug(ExScimPhoenix.Plugs.Authorize, [resource: :me, action: :delete] when action in [:delete])
 
   @doc false
   def show(conn, _params) do
