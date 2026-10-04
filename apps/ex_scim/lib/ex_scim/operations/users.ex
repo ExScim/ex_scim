@@ -7,6 +7,7 @@ defmodule ExScim.Operations.Users do
   primary entry point used by controllers to execute user operations.
   """
 
+  alias ExScim.Config
   alias ExScim.Lifecycle
   alias ExScim.Resources.IdGenerator
   alias ExScim.Resources.Metadata
@@ -20,7 +21,7 @@ defmodule ExScim.Operations.Users do
   def get_user(id, scope) do
     with :ok <- Lifecycle.before_get(:user, id, scope),
          {:ok, domain_user} <- Storage.get_user(id, scope),
-         {:ok, scim_user} <- Mapper.to_scim(domain_user, scope) do
+         {:ok, scim_user} <- to_scim(domain_user, scope) do
       Lifecycle.after_get(:user, scim_user, scope)
       {:ok, scim_user}
     else
@@ -61,7 +62,7 @@ defmodule ExScim.Operations.Users do
          data_with_metadata <- Metadata.update_metadata(data_with_id, "User"),
          {:ok, hooked_data} <- Lifecycle.before_create(:user, data_with_metadata, scope),
          {:ok, stored_user} <- Storage.create_user(hooked_data, scope),
-         {:ok, scim_user} <- Mapper.to_scim(stored_user, scope) do
+         {:ok, scim_user} <- to_scim(stored_user, scope) do
       Lifecycle.after_create(:user, scim_user, scope)
       {:ok, scim_user}
     else
@@ -87,7 +88,7 @@ defmodule ExScim.Operations.Users do
          user_with_meta <- Metadata.update_metadata(user_with_created, "User"),
          {:ok, hooked_data} <- Lifecycle.before_replace(:user, user_id, user_with_meta, scope),
          {:ok, stored_user} <- Storage.replace_user(user_id, hooked_data, scope),
-         {:ok, scim_user} <- Mapper.to_scim(stored_user, scope) do
+         {:ok, scim_user} <- to_scim(stored_user, scope) do
       Lifecycle.after_replace(:user, scim_user, scope)
       {:ok, scim_user}
     else
@@ -111,7 +112,7 @@ defmodule ExScim.Operations.Users do
          user_with_meta <- Metadata.update_metadata(patched_user, "User"),
          {:ok, hooked_data} <- Lifecycle.before_patch(:user, user_id, user_with_meta, scope),
          {:ok, stored_user} <- Storage.update_user(user_id, hooked_data, scope),
-         {:ok, scim_user} <- Mapper.to_scim(stored_user, scope) do
+         {:ok, scim_user} <- to_scim(stored_user, scope) do
       Lifecycle.after_patch(:user, scim_user, scope)
       {:ok, scim_user}
     else
@@ -134,6 +135,17 @@ defmodule ExScim.Operations.Users do
     end
   end
 
+  defp to_scim(user, scope, base_url \\ nil) do
+    case Resource.get_id(user) do
+      nil ->
+        Mapper.to_scim(user, scope)
+
+      id ->
+        base_url = base_url || Config.scim_base_url(scope)
+        Mapper.to_scim(user, scope, location: "#{base_url}/Users/#{id}")
+    end
+  end
+
   defp maybe_set_id(user_struct) do
     case Resource.get_id(user_struct) do
       nil -> Resource.set_id(user_struct, IdGenerator.generate_uuid())
@@ -142,9 +154,11 @@ defmodule ExScim.Operations.Users do
   end
 
   defp map_all_users(domain_users, scope, total) do
+    base_url = Config.scim_base_url(scope)
+
     domain_users
     |> Enum.reduce_while({:ok, []}, fn user, {:ok, acc} ->
-      case Mapper.to_scim(user, scope) do
+      case to_scim(user, scope, base_url) do
         {:ok, scim_user} -> {:cont, {:ok, [scim_user | acc]}}
         {:error, _} = error -> {:halt, error}
       end

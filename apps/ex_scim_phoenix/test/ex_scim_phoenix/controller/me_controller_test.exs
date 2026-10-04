@@ -45,7 +45,8 @@ defmodule ExScimPhoenix.Controller.MeControllerTest do
       assert body["id"] == @me_id
       assert body["userName"] == "me.user"
       assert [location] = get_resp_header(conn, "location")
-      assert location =~ "/Me"
+      assert location == body["meta"]["location"]
+      assert location =~ "/Users/#{@me_id}"
     end
 
     test "returns 404 when the authenticated user does not exist" do
@@ -78,7 +79,8 @@ defmodule ExScimPhoenix.Controller.MeControllerTest do
       assert body["userName"] == "self.registered"
       assert body["externalId"] == @me_id
       assert [location] = get_resp_header(conn, "location")
-      assert location =~ "/Me"
+      assert location == body["meta"]["location"]
+      assert location =~ "/Users/#{body["id"]}"
     end
 
     test "enriches self-registration from JWT claims" do

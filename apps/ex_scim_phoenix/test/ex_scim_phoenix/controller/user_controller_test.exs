@@ -48,6 +48,14 @@ defmodule ExScimPhoenix.Controller.UserControllerTest do
       assert length(body["Resources"]) == 2
     end
 
+    test "includes meta.location for each resource" do
+      create_user!("alice")
+
+      conn = get(auth_conn(), "/Users")
+      assert [user] = json_response(conn, 200)["Resources"]
+      assert user["meta"]["location"] =~ "/scim/v2/Users/#{user["id"]}"
+    end
+
     test "empty list when no users" do
       conn = get(auth_conn(), "/Users")
       body = json_response(conn, 200)
@@ -151,13 +159,13 @@ defmodule ExScimPhoenix.Controller.UserControllerTest do
       assert @user_schema in body["schemas"]
     end
 
-    # SD-4: the Operations layer calls to_scim/2 without a :location opt, so
-    # meta.location is nil and the controller emits no Location header, despite
-    # RFC 7644 Section 3.3 (SHOULD). Documented as current behavior pending a fix.
-    test "does NOT set a Location header (SD-4, current behavior)" do
+    test "sets the Location header to meta.location" do
       conn = post(auth_conn(), "/Users", scim_user("john.doe"))
-      assert json_response(conn, 201)
-      assert get_resp_header(conn, "location") == []
+      body = json_response(conn, 201)
+
+      assert [location] = get_resp_header(conn, "location")
+      assert location == body["meta"]["location"]
+      assert location =~ "/scim/v2/Users/#{body["id"]}"
     end
 
     test "rejects invalid payload (missing userName) with 400" do

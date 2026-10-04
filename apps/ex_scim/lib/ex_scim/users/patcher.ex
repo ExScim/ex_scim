@@ -113,12 +113,12 @@ defmodule ExScim.Users.Patcher do
       scim_type: :invalid_value
   end
 
-  defp apply_remove(_resource, %{"path" => nil}) do
-    %{}
+  defp apply_remove(resource, %{"path" => path}) when is_binary(path) do
+    pop_in_path(resource, path)
   end
 
-  defp apply_remove(resource, %{"path" => path}) do
-    pop_in_path(resource, path)
+  defp apply_remove(_resource, _operation) do
+    raise PatchError, message: "Remove operation requires a path", scim_type: :no_target
   end
 
   # For now assume dot-separated paths like "name.familyName"

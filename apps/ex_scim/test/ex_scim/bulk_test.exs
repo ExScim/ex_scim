@@ -167,6 +167,31 @@ defmodule ExScim.BulkTest do
       assert operation_result["bulkId"] == "bulk_delete_1"
       # Should return 404 for non-existent user
       assert operation_result["status"] == "404"
+      assert operation_result["location"] =~ ~r{/scim/v2/Users/non-existent-id$}
+    end
+
+    test "omits location for a failed POST" do
+      request = %{
+        "schemas" => ["urn:ietf:params:scim:api:messages:2.0:BulkRequest"],
+        "Operations" => [
+          %{"method" => "POST", "bulkId" => "p1", "path" => "/Users", "data" => %{}}
+        ]
+      }
+
+      assert {:ok, %{"Operations" => [result]}} = Bulk.process_bulk_request(request, @test_caller)
+      assert result["status"] == "400"
+      refute Map.has_key?(result, "location")
+    end
+
+    test "reports an unknown resource path with string keys" do
+      request = %{
+        "schemas" => ["urn:ietf:params:scim:api:messages:2.0:BulkRequest"],
+        "Operations" => [%{"method" => "DELETE", "bulkId" => "d1", "path" => "/Widgets/1"}]
+      }
+
+      assert {:ok, %{"Operations" => [result]}} = Bulk.process_bulk_request(request, @test_caller)
+      assert result["status"] == "400"
+      assert result["bulkId"] == "d1"
     end
 
     test "handles mixed operations" do

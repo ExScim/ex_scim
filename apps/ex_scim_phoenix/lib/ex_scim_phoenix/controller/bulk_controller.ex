@@ -11,7 +11,6 @@ defmodule ExScimPhoenix.Controller.BulkController do
   import ExScimPhoenix.ErrorResponse
 
   alias ExScim.Operations.Bulk
-  alias ExScim.Config
 
   # Default configuration values
   @default_max_operations 1000
@@ -26,14 +25,12 @@ defmodule ExScimPhoenix.Controller.BulkController do
 
     # Get configuration from application config
     bulk_config = get_bulk_config()
-    base_url = Config.base_url()
 
     # Parse bulk operation parameters from request
     opts = [
       fail_on_errors: parse_fail_on_errors(bulk_request),
       max_operations: bulk_config.max_operations,
-      max_payload_size: bulk_config.max_payload_size,
-      base_url: base_url
+      max_payload_size: bulk_config.max_payload_size
     ]
 
     case Bulk.process_bulk_request(bulk_request, caller, opts) do

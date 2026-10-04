@@ -14,16 +14,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ExScim.Authorization.Adapter` behaviour and `:authorization_adapter` config
 - `ExScim.Authorization.DefaultPolicy` with the `scim:*` scopes
 - `ExScim.Resources.PatchError` exception
+- `Config.scim_base_url/1` with tenant-specific base URL
 
 #### Changed
 
 - `/Bulk` per-operation authorization via the configured policy
 - `Users.Patcher.patch/2` and `Groups.Patcher.patch/2` error tuple `{:invalid_patch, scim_type, message}`
 - `Operations.Bulk` error tuple `{:too_large, message}` for `:max_operations` and `:max_payload_size`
+- `Operations.Bulk` tenant-aware `location`; `:base_url` option removed
 
 #### Fixed
 
 - PATCH op on a non-traversable path returning `noTarget`
+- PATCH `remove` without `path` returning `noTarget`
+- `meta.location` on User and Group resources
+- `/Bulk` `location` on every operation except failed POST
+- `/Bulk` `insufficientScope` scimType on denied operations
 
 ### ex_scim_phoenix
 
@@ -42,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 400 `invalidFilter` on invalid `/.search` filter
 - `/Me` self-registration with an `email` JWT claim
 - 413 on `/Bulk` over `maxOperations` or `maxPayloadSize`
+- `Location` header on `POST /Users`, `POST /Groups`
+- `/Me` `Location` header pointing to the user resource
 
 ## [0.3.0] - 2026-10-01
 

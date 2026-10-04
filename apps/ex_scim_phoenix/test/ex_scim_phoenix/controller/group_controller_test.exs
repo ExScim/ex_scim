@@ -138,6 +138,15 @@ defmodule ExScimPhoenix.Controller.GroupControllerTest do
       assert @group_schema in body["schemas"]
     end
 
+    test "sets the Location header to meta.location" do
+      conn = post(auth_conn(), "/Groups", scim_group("Engineering"))
+      body = json_response(conn, 201)
+
+      assert [location] = get_resp_header(conn, "location")
+      assert location == body["meta"]["location"]
+      assert location =~ "/scim/v2/Groups/#{body["id"]}"
+    end
+
     test "creates a group with members" do
       payload =
         scim_group("WithMembers")

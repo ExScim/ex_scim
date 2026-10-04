@@ -48,6 +48,8 @@ defmodule ExScimPhoenix.Controller.BulkControllerTest do
       assert [op] = body["Operations"]
       assert op["status"] == "201"
       assert op["bulkId"] == "q1"
+      assert op["location"] == op["response"]["meta"]["location"]
+      assert op["location"] =~ "/scim/v2/Users/#{op["response"]["id"]}"
     end
 
     test "processes multiple operations" do

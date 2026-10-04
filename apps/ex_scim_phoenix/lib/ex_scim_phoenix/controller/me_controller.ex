@@ -11,7 +11,6 @@ defmodule ExScimPhoenix.Controller.MeController do
 
   alias ExScim.Operations.Users
   alias ExScim.Scope
-  alias ExScim.Config
   import ExScimPhoenix.ErrorResponse
 
   plug(ExScimPhoenix.Plugs.Authorize, [resource: :me, action: :read] when action in [:show])
@@ -30,7 +29,7 @@ defmodule ExScimPhoenix.Controller.MeController do
       %Scope{id: user_id} = caller ->
         with {:ok, user} <- Users.get_user(user_id, caller) do
           conn
-          |> put_resp_header("location", scim_me_location(conn))
+          |> maybe_put_resp_header("location", get_in(user, ["meta", "location"]))
           |> json(user)
         else
           {:error, :insufficient_scope} ->
@@ -71,7 +70,7 @@ defmodule ExScimPhoenix.Controller.MeController do
          {:ok, user} <- Users.create_user_from_scim(enhanced_params, caller) do
       conn
       |> put_status(:created)
-      |> put_resp_header("location", scim_me_location(conn))
+      |> maybe_put_resp_header("location", get_in(user, ["meta", "location"]))
       |> maybe_put_resp_header("etag", get_in(user, ["meta", "version"]))
       |> json(user)
     else
@@ -115,7 +114,7 @@ defmodule ExScimPhoenix.Controller.MeController do
     case Users.replace_user_from_scim(user_id, clean_params, caller) do
       {:ok, user} ->
         conn
-        |> put_resp_header("location", scim_me_location(conn))
+        |> maybe_put_resp_header("location", get_in(user, ["meta", "location"]))
         |> maybe_put_resp_header("etag", get_in(user, ["meta", "version"]))
         |> json(user)
 
@@ -146,7 +145,7 @@ defmodule ExScimPhoenix.Controller.MeController do
     case Users.patch_user_from_scim(user_id, clean_params, caller) do
       {:ok, user} ->
         conn
-        |> put_resp_header("location", scim_me_location(conn))
+        |> maybe_put_resp_header("location", get_in(user, ["meta", "location"]))
         |> maybe_put_resp_header("etag", get_in(user, ["meta", "version"]))
         |> json(user)
 
@@ -268,9 +267,5 @@ defmodule ExScimPhoenix.Controller.MeController do
     |> Enum.map(fn {email, index} ->
       %{"value" => email, "primary" => index == 0}
     end)
-  end
-
-  defp scim_me_location(_conn) do
-    "#{Config.scim_base_url()}/Me"
   end
 end

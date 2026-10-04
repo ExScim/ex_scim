@@ -8,7 +8,7 @@ All options are set under `config :ex_scim`.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `:base_url` | `"http://localhost:4000"` | Base URL for SCIM endpoints. Falls back to `SCIM_BASE_URL` env var. |
+| `:base_url` | `"http://localhost:4000"` | Base URL for SCIM endpoints. Resource URLs are built as `<base_url>/scim/v2/...`, so the routes are expected under `/scim/v2`. Falls back to `SCIM_BASE_URL` env var. |
 | `:storage_strategy` | `ExScim.Storage.EtsStorage` | Module implementing `ExScim.Storage.Adapter` |
 | `:auth_provider_adapter` | *required* | Module implementing `ExScim.Auth.AuthProvider.Adapter` |
 | `:authorization_adapter` | `ExScim.Authorization.DefaultPolicy` | Module implementing `ExScim.Authorization.Adapter` |
@@ -227,25 +227,32 @@ Implement `ExScim.Users.Mapper.Adapter` or `ExScim.Groups.Mapper.Adapter` to con
 
 ```elixir
 defmodule MyApp.UserMapper do
-  @behaviour ExScim.Users.Mapper.Adapter
+  use ExScim.Users.Mapper.Adapter
 
-  def from_scim(scim_data) do
-    %MyApp.User{
-      username: scim_data["userName"],
-      email: get_primary_email(scim_data["emails"])
-    }
+  @impl true
+  def from_scim(scim_data, _caller) do
+    {:ok,
+     %MyApp.User{
+       username: scim_data["userName"],
+       email: get_primary_email(scim_data["emails"])
+     }}
   end
 
-  def to_scim(%MyApp.User{} = user, _opts) do
-    %{
-      "schemas" => ["urn:ietf:params:scim:schemas:core:2.0:User"],
-      "id" => user.id,
-      "userName" => user.username,
-      "emails" => format_emails(user.email)
-    }
+  @impl true
+  def to_scim(%MyApp.User{} = user, _caller, opts \\ []) do
+    {:ok,
+     %{
+       "schemas" => ["urn:ietf:params:scim:schemas:core:2.0:User"],
+       "id" => user.id,
+       "userName" => user.username,
+       "emails" => format_emails(user.email),
+       "meta" => format_meta(user, opts)
+     }}
   end
 end
 ```
+
+`opts` carries `:location`, the resource URL. Passing `opts` to `format_meta/2` sets `meta.location`, which is also returned as the `Location` header.
 
 ## Endpoints
 

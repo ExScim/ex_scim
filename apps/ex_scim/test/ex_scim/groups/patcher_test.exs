@@ -178,6 +178,13 @@ defmodule ExScim.Groups.PatcherTest do
       assert msg =~ "Add operation missing required 'value' field"
     end
 
+    test "returns noTarget for remove without a path" do
+      ops = %{"Operations" => [%{"op" => "remove"}]}
+
+      assert {:error, {:invalid_patch, :no_target, _}} =
+               Patcher.patch(%{"displayName" => "Eng"}, ops)
+    end
+
     test "returns noTarget for a path through a non-map value" do
       ops = %{"Operations" => [%{"op" => "replace", "path" => "displayName.x", "value" => "y"}]}
 

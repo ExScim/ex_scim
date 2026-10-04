@@ -130,6 +130,8 @@ defmodule ExScim.AuthorizationTest do
       [op] = response["Operations"]
       assert op["status"] == "403"
       assert op["response"]["detail"] == "Missing required scope(s): scim:delete"
+      assert op["response"]["scimType"] == "insufficientScope"
+      assert op["location"] =~ ~r{/Users/missing$}
     end
 
     test "consult the configured adapter per resource" do

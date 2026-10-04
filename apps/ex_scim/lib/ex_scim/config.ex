@@ -45,6 +45,15 @@ defmodule ExScim.Config do
   end
 
   @doc """
+  Returns the SCIM base URL for `scope`, using the tenant-specific base URL when the
+  configured tenant resolver implements `tenant_scim_base_url/1`.
+  """
+  @spec scim_base_url(ExScim.Scope.t() | nil) :: String.t()
+  def scim_base_url(scope) do
+    tenant_scim_base_url(scope) || scim_base_url()
+  end
+
+  @doc """
   Generates a full SCIM resource URL for the given resource type and ID.
 
   ## Examples
@@ -76,8 +85,7 @@ defmodule ExScim.Config do
   @spec resource_url(String.t(), String.t(), ExScim.Scope.t() | nil) :: String.t()
   def resource_url(resource_type, resource_id, scope)
       when is_binary(resource_type) and is_binary(resource_id) do
-    base = tenant_scim_base_url(scope) || scim_base_url()
-    "#{base}/#{resource_type}/#{resource_id}"
+    "#{scim_base_url(scope)}/#{resource_type}/#{resource_id}"
   end
 
   @doc """
@@ -98,8 +106,7 @@ defmodule ExScim.Config do
   """
   @spec collection_url(String.t(), ExScim.Scope.t() | nil) :: String.t()
   def collection_url(resource_type, scope) when is_binary(resource_type) do
-    base = tenant_scim_base_url(scope) || scim_base_url()
-    "#{base}/#{resource_type}"
+    "#{scim_base_url(scope)}/#{resource_type}"
   end
 
   @doc """

@@ -9,6 +9,7 @@ defmodule ExScim.Operations.Groups do
 
   alias ExScim.Groups.Mapper
   alias ExScim.Groups.Patcher
+  alias ExScim.Config
   alias ExScim.Lifecycle
   alias ExScim.Resources.Resource
   alias ExScim.Resources.IdGenerator
@@ -20,7 +21,7 @@ defmodule ExScim.Operations.Groups do
   def get_group(id, scope) do
     with :ok <- Lifecycle.before_get(:group, id, scope),
          {:ok, domain_group} <- Storage.get_group(id, scope),
-         {:ok, scim_group} <- Mapper.to_scim(domain_group, scope) do
+         {:ok, scim_group} <- to_scim(domain_group, scope) do
       Lifecycle.after_get(:group, scim_group, scope)
       {:ok, scim_group}
     else
@@ -61,7 +62,7 @@ defmodule ExScim.Operations.Groups do
          data_with_metadata <- Metadata.update_metadata(data_with_id, "Group"),
          {:ok, hooked_data} <- Lifecycle.before_create(:group, data_with_metadata, scope),
          {:ok, stored_group} <- Storage.create_group(hooked_data, scope),
-         {:ok, scim_group} <- Mapper.to_scim(stored_group, scope) do
+         {:ok, scim_group} <- to_scim(stored_group, scope) do
       Lifecycle.after_create(:group, scim_group, scope)
       {:ok, scim_group}
     else
@@ -88,7 +89,7 @@ defmodule ExScim.Operations.Groups do
          {:ok, hooked_data} <-
            Lifecycle.before_replace(:group, group_id, group_with_meta, scope),
          {:ok, stored_group} <- Storage.replace_group(group_id, hooked_data, scope),
-         {:ok, scim_group} <- Mapper.to_scim(stored_group, scope) do
+         {:ok, scim_group} <- to_scim(stored_group, scope) do
       Lifecycle.after_replace(:group, scim_group, scope)
       {:ok, scim_group}
     else
@@ -113,7 +114,7 @@ defmodule ExScim.Operations.Groups do
          {:ok, hooked_data} <-
            Lifecycle.before_patch(:group, group_id, group_with_meta, scope),
          {:ok, stored_group} <- Storage.update_group(group_id, hooked_data, scope),
-         {:ok, scim_group} <- Mapper.to_scim(stored_group, scope) do
+         {:ok, scim_group} <- to_scim(stored_group, scope) do
       Lifecycle.after_patch(:group, scim_group, scope)
       {:ok, scim_group}
     else
@@ -136,6 +137,17 @@ defmodule ExScim.Operations.Groups do
     end
   end
 
+  defp to_scim(group, scope, base_url \\ nil) do
+    case Resource.get_id(group) do
+      nil ->
+        Mapper.to_scim(group, scope)
+
+      id ->
+        base_url = base_url || Config.scim_base_url(scope)
+        Mapper.to_scim(group, scope, location: "#{base_url}/Groups/#{id}")
+    end
+  end
+
   defp maybe_set_id(group_struct) do
     case Resource.get_id(group_struct) do
       nil -> Resource.set_id(group_struct, IdGenerator.generate_uuid())
@@ -144,9 +156,11 @@ defmodule ExScim.Operations.Groups do
   end
 
   defp map_all_groups(domain_groups, scope, total) do
+    base_url = Config.scim_base_url(scope)
+
     domain_groups
     |> Enum.reduce_while({:ok, []}, fn group, {:ok, acc} ->
-      case Mapper.to_scim(group, scope) do
+      case to_scim(group, scope, base_url) do
         {:ok, scim_group} -> {:cont, {:ok, [scim_group | acc]}}
         {:error, _} = error -> {:halt, error}
       end

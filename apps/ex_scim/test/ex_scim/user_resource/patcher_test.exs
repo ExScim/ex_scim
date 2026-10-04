@@ -177,7 +177,7 @@ defmodule ExScim.Users.PatcherTest do
       assert patched_user["userName"] == "john.doe"
     end
 
-    test "handles remove operation with no path (clears all)", %{user_map: _user_map} do
+    test "rejects remove operation without a path" do
       patch_ops = %{
         "Operations" => [
           %{
@@ -187,8 +187,8 @@ defmodule ExScim.Users.PatcherTest do
         ]
       }
 
-      assert {:ok, patched_user} = Patcher.patch(%{"test" => "data"}, patch_ops)
-      assert patched_user == %{}
+      assert {:error, {:invalid_patch, :no_target, _}} =
+               Patcher.patch(%{"test" => "data"}, patch_ops)
     end
 
     test "handles multiple operations in sequence", %{user_map: user_map} do
