@@ -76,16 +76,9 @@ defmodule ExScimPhoenix.Controller.SearchControllerTest do
       assert length(body["Resources"]) == 2
     end
 
-    # SD-6: parse_search_filter_param interpolates the NimbleParsec position
-    # tuple (line = {1, 0}) into a string, which raises Protocol.UndefinedError
-    # (String.Chars not implemented for Tuple). So an invalid filter crashes
-    # (500) instead of returning a clean 400 invalidValue. UserController avoids
-    # this by not interpolating line/column. Asserting the raise documents the
-    # current behavior; the fix is to drop the line/column interpolation.
-    test "invalid filter currently crashes (SD-6, current behavior)" do
-      assert_raise Protocol.UndefinedError, fn ->
-        post(auth_conn(), "/Users/.search", search_request(%{"filter" => "userName eq"}))
-      end
+    test "rejects invalid filter syntax with 400 invalidFilter" do
+      conn = post(auth_conn(), "/Users/.search", search_request(%{"filter" => "userName eq"}))
+      assert json_response(conn, 400)["scimType"] == "invalidFilter"
     end
 
     test "rejects an empty request body with 400" do

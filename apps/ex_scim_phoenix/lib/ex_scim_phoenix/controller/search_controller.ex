@@ -46,6 +46,9 @@ defmodule ExScimPhoenix.Controller.SearchController do
       {:error, :invalid_search_request} ->
         send_scim_error(conn, :bad_request, :invalid_syntax, "Invalid search request format")
 
+      {:error, {:invalid_filter, message}} ->
+        send_scim_error(conn, :bad_request, :invalid_filter, message)
+
       {:error, reason} ->
         send_scim_error(conn, :bad_request, :invalid_value, "Invalid search request: #{reason}")
     end
@@ -70,6 +73,9 @@ defmodule ExScimPhoenix.Controller.SearchController do
     else
       {:error, :invalid_search_request} ->
         send_scim_error(conn, :bad_request, :invalid_syntax, "Invalid search request format")
+
+      {:error, {:invalid_filter, message}} ->
+        send_scim_error(conn, :bad_request, :invalid_filter, message)
 
       {:error, reason} ->
         send_scim_error(conn, :bad_request, :invalid_value, "Invalid search request: #{reason}")
@@ -163,8 +169,8 @@ defmodule ExScimPhoenix.Controller.SearchController do
           {:ok, [ast], "", _, _, _} ->
             {:ok, ast}
 
-          {:error, reason, _rest, _context, line, column} ->
-            {:error, "Invalid filter syntax at line #{line}, column #{column}: #{reason}"}
+          {:error, reason, _rest, _context, _line, _column} ->
+            {:error, {:invalid_filter, "Invalid filter syntax: #{reason}"}}
         end
 
       _ ->
