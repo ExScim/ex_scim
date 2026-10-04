@@ -153,24 +153,8 @@ defmodule ExScimPhoenix.Controller.MeController do
       {:error, :user_not_found} ->
         send_scim_error(conn, :not_found, :not_found, "Authenticated user not found")
 
-      {:error, :invalid_patch_operation} ->
-        send_scim_error(conn, :bad_request, :invalid_syntax, "Invalid patch operation")
-
-      {:error, :no_target} ->
-        send_scim_error(
-          conn,
-          :bad_request,
-          :no_target,
-          "Path attribute did not yield a valid target"
-        )
-
-      {:error, :invalid_path} ->
-        send_scim_error(
-          conn,
-          :bad_request,
-          :invalid_path,
-          "Path attribute is invalid or malformed"
-        )
+      {:error, {:invalid_patch, scim_type, message}} ->
+        send_scim_error(conn, :bad_request, scim_type, message)
 
       {:error, :mapping_error} ->
         send_scim_error(conn, :internal_server_error, :internal_error, "Error mapping user data")
@@ -234,6 +218,13 @@ defmodule ExScimPhoenix.Controller.MeController do
 
   defp maybe_add_from_claims(params, _field, _claims, _claim_key) when map_size(params) == 0 do
     params
+  end
+
+  defp maybe_add_from_claims(params, "emails", claims, "email") do
+    case format_emails(Map.get(claims, "email")) do
+      nil -> params
+      emails -> Map.put_new(params, "emails", emails)
+    end
   end
 
   defp maybe_add_from_claims(params, field, claims, claim_key) when is_binary(claim_key) do

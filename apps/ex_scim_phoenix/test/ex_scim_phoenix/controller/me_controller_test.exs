@@ -81,17 +81,14 @@ defmodule ExScimPhoenix.Controller.MeControllerTest do
       assert location =~ "/Me"
     end
 
-    # SD-7: the JWT-claims branch sets emails => the raw email string (via
-    # maybe_add_from_claims(params, "emails", claims, "email")), but SCIM requires
-    # emails to be an array of objects. So claims-based self-registration that
-    # carries an email is rejected with 400 invalidValue. The enrichment code
-    # (userName, name, externalId) still runs before validation fails.
-    test "claims enrichment with an email currently fails validation (SD-7)" do
+    test "enriches self-registration from JWT claims" do
       conn = post(authed("token-me-claims"), "/Me", %{"schemas" => [@user_schema]})
-      body = json_response(conn, 400)
+      body = json_response(conn, 201)
 
-      assert body["scimType"] == "invalidValue"
-      assert Enum.any?(body["errors"], &(&1["path"] == "emails"))
+      assert body["userName"] == "claims.user"
+      assert body["externalId"] == "sub-123"
+      assert body["name"] == %{"givenName" => "Claims", "familyName" => "User"}
+      assert body["emails"] == [%{"value" => "claims@test.com", "primary" => true}]
     end
 
     test "enriches self-registration from OAuth user_info" do
@@ -135,6 +132,18 @@ defmodule ExScimPhoenix.Controller.MeControllerTest do
 
       conn = patch(me_conn(), "/Me", patch)
       assert json_response(conn, 200)["id"] == @me_id
+    end
+
+    test "rejects an unsupported op with 400 invalidSyntax" do
+      seed_me_user!()
+
+      patch = %{
+        "schemas" => [@patch_schema],
+        "Operations" => [%{"op" => "frobnicate", "path" => "display_name", "value" => "X"}]
+      }
+
+      conn = patch(me_conn(), "/Me", patch)
+      assert json_response(conn, 400)["scimType"] == "invalidSyntax"
     end
   end
 
