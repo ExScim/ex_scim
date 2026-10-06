@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-06
+
 ### ex_scim
+
+#### Breaking Changes
+
+- `Users.Patcher.patch/2` and `Groups.Patcher.patch/2` error tuple `{:invalid_patch, scim_type, message}`
+- `Operations.Bulk` error tuple `{:too_large, message}` for `:max_operations` and `:max_payload_size`
+- `Operations.Bulk` `:base_url` option removed
 
 #### Added
 
@@ -19,9 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Changed
 
 - `/Bulk` per-operation authorization via the configured policy
-- `Users.Patcher.patch/2` and `Groups.Patcher.patch/2` error tuple `{:invalid_patch, scim_type, message}`
-- `Operations.Bulk` error tuple `{:too_large, message}` for `:max_operations` and `:max_payload_size`
-- `Operations.Bulk` tenant-aware `location`; `:base_url` option removed
+- `Operations.Bulk` tenant-aware `location`
 
 #### Fixed
 
@@ -30,6 +36,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `meta.location` on User and Group resources
 - `/Bulk` `location` on every operation except failed POST
 - `/Bulk` `insufficientScope` scimType on denied operations
+
+### ex_scim_client
+
+#### Added
+
+- Auth strategies on `Client.new/2`: `{:bearer, token}`, `{:basic, username,
+  password}`, `{:header, name, value}`, `:none`
+
+### ex_scim_ecto
+
+#### Changed
+
+- `ex_scim` dependency (`~> 0.2.2` -> `~> 0.3.0`)
 
 ### ex_scim_phoenix
 
@@ -43,22 +62,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Fixed
 
--  Enforce `scim:read` scope on `/.search`, `/Users/.search`, `/Groups/.search`
+- Enforce `scim:read` scope on `/.search`, `/Users/.search`, `/Groups/.search`
 - 400 on malformed PATCH ops for `/Users`, `/Groups`, `/Me`
 - 400 `invalidFilter` on invalid `/.search` filter
 - `/Me` self-registration with an `email` JWT claim
 - 413 on `/Bulk` over `maxOperations` or `maxPayloadSize`
 - `Location` header on `POST /Users`, `POST /Groups`
 - `/Me` `Location` header pointing to the user resource
-
-## [0.3.0] - 2026-10-01
-
-### ex_scim_client
-
-#### Added
-
-- Auth strategies on `Client.new/2`: `{:bearer, token}`, `{:basic, username,
-  password}`, `{:header, name, value}`, `:none`
 
 ## [0.2.2] - 2026-09-13
 
