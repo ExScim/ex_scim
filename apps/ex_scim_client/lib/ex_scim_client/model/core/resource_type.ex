@@ -1,6 +1,6 @@
 defmodule ExScimClient.Model.Core.ResourceType do
   @moduledoc """
-  Resource type definition (RFC 7643 §6)
+  Resource type definition (RFC 7643 Section 6)
   """
 
   @derive JSON.Encoder

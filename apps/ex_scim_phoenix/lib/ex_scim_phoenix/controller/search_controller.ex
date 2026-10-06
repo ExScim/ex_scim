@@ -12,6 +12,7 @@ defmodule ExScimPhoenix.Controller.SearchController do
 
   alias ExScim.Operations.Users
   alias ExScim.Operations.Groups
+  alias ExScimPhoenix.Plugs.Authorize
 
   # Default pagination values
   @default_start_index 1
@@ -20,6 +21,8 @@ defmodule ExScimPhoenix.Controller.SearchController do
 
   @scim_search_request_schema "urn:ietf:params:scim:api:messages:2.0:SearchRequest"
   @scim_list_response_schema "urn:ietf:params:scim:api:messages:2.0:ListResponse"
+
+  plug(:authorize_search)
 
   @doc "Performs a resource-specific search (e.g. POST /Users/.search)."
   def search(conn, search_params) do
@@ -42,6 +45,9 @@ defmodule ExScimPhoenix.Controller.SearchController do
     else
       {:error, :invalid_search_request} ->
         send_scim_error(conn, :bad_request, :invalid_syntax, "Invalid search request format")
+
+      {:error, {:invalid_filter, message}} ->
+        send_scim_error(conn, :bad_request, :invalid_filter, message)
 
       {:error, reason} ->
         send_scim_error(conn, :bad_request, :invalid_value, "Invalid search request: #{reason}")
@@ -67,6 +73,9 @@ defmodule ExScimPhoenix.Controller.SearchController do
     else
       {:error, :invalid_search_request} ->
         send_scim_error(conn, :bad_request, :invalid_syntax, "Invalid search request format")
+
+      {:error, {:invalid_filter, message}} ->
+        send_scim_error(conn, :bad_request, :invalid_filter, message)
 
       {:error, reason} ->
         send_scim_error(conn, :bad_request, :invalid_value, "Invalid search request: #{reason}")
@@ -160,8 +169,8 @@ defmodule ExScimPhoenix.Controller.SearchController do
           {:ok, [ast], "", _, _, _} ->
             {:ok, ast}
 
-          {:error, reason, _rest, _context, line, column} ->
-            {:error, "Invalid filter syntax at line #{line}, column #{column}: #{reason}"}
+          {:error, reason, _rest, _context, _line, _column} ->
+            {:error, {:invalid_filter, "Invalid filter syntax: #{reason}"}}
         end
 
       _ ->
@@ -257,6 +266,19 @@ defmodule ExScimPhoenix.Controller.SearchController do
     else
       {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp authorize_search(conn, _opts) do
+    resources =
+      case action_name(conn) do
+        :search_all -> [:users, :groups]
+        :search -> [determine_resource_type(conn.request_path)] -- [:unknown]
+      end
+
+    Enum.reduce_while(resources, conn, fn resource, conn ->
+      conn = Authorize.authorize(conn, resource, :read)
+      if conn.halted, do: {:halt, conn}, else: {:cont, conn}
+    end)
   end
 
   defp determine_resource_type(path) do

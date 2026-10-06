@@ -5,6 +5,8 @@ defmodule ExScim.Users.Patcher do
   Supports both plain maps and domain structs with automatic key conversion.
   """
 
+  alias ExScim.Resources.PatchError
+
   @doc """
   Applies SCIM PatchOp operations to a user.
 
@@ -12,12 +14,14 @@ defmodule ExScim.Users.Patcher do
   of operations. Each operation must have an `"op"` field (`"add"`, `"replace"`,
   or `"remove"`) and optionally `"path"` and `"value"` fields.
 
-  Returns `{:ok, updated_user}` or `{:error, reason}`.
+  Returns `{:ok, updated_user}` or `{:error, {:invalid_patch, scim_type, message}}`.
   """
-  @spec patch(map() | struct(), map()) :: {:ok, map() | struct()} | {:error, term()}
+  @spec patch(map() | struct(), map()) ::
+          {:ok, map() | struct()}
+          | {:error, {:invalid_patch, ExScim.Error.scim_type(), String.t()}}
   def patch(user_data, %{"Operations" => operations}) when is_list(operations) do
     if length(operations) == 0 do
-      {:error, "Operations array cannot be empty"}
+      invalid_patch("Operations array cannot be empty")
     else
       try do
         updated =
@@ -27,7 +31,7 @@ defmodule ExScim.Users.Patcher do
 
         {:ok, updated}
       rescue
-        e -> {:error, Exception.message(e)}
+        e in PatchError -> {:error, {:invalid_patch, e.scim_type, e.message}}
       end
     end
   end
@@ -35,30 +39,32 @@ defmodule ExScim.Users.Patcher do
   def patch(_user_data, patch_ops) do
     cond do
       not is_map(patch_ops) ->
-        {:error, "Patch operations must be a map"}
+        invalid_patch("Patch operations must be a map")
 
       not Map.has_key?(patch_ops, "Operations") ->
-        {:error, "Missing required Operations field"}
+        invalid_patch("Missing required Operations field")
 
       not is_list(patch_ops["Operations"]) ->
-        {:error, "Operations must be an array"}
+        invalid_patch("Operations must be an array")
 
       true ->
-        {:error, "Invalid patch operations format"}
+        invalid_patch("Invalid patch operations format")
     end
   end
+
+  defp invalid_patch(message), do: {:error, {:invalid_patch, :invalid_syntax, message}}
 
   defp apply_op(resource, %{"op" => op} = operation) when is_binary(op) do
     case String.downcase(op) do
       "add" -> apply_add(resource, operation)
       "replace" -> apply_replace(resource, operation)
       "remove" -> apply_remove(resource, operation)
-      other -> raise "Unsupported op: #{inspect(other)}"
+      other -> raise PatchError, "Unsupported op: #{inspect(other)}"
     end
   end
 
   defp apply_op(_resource, operation) do
-    raise "Invalid operation: #{inspect(operation)} - missing or invalid 'op' field"
+    raise PatchError, "Invalid operation: #{inspect(operation)} - missing or invalid 'op' field"
   end
 
   defp apply_add(resource, %{"path" => nil, "value" => value}) do
@@ -75,7 +81,9 @@ defmodule ExScim.Users.Patcher do
   end
 
   defp apply_add(_resource, operation) do
-    raise "Add operation missing required 'value' field: #{inspect(operation)}"
+    raise PatchError,
+      message: "Add operation missing required 'value' field: #{inspect(operation)}",
+      scim_type: :invalid_value
   end
 
   defp apply_replace(resource, %{"path" => nil, "value" => value}) when is_map(value) do
@@ -100,15 +108,17 @@ defmodule ExScim.Users.Patcher do
   end
 
   defp apply_replace(_resource, operation) do
-    raise "Replace operation missing required 'value' field: #{inspect(operation)}"
+    raise PatchError,
+      message: "Replace operation missing required 'value' field: #{inspect(operation)}",
+      scim_type: :invalid_value
   end
 
-  defp apply_remove(_resource, %{"path" => nil}) do
-    %{}
-  end
-
-  defp apply_remove(resource, %{"path" => path}) do
+  defp apply_remove(resource, %{"path" => path}) when is_binary(path) do
     pop_in_path(resource, path)
+  end
+
+  defp apply_remove(_resource, _operation) do
+    raise PatchError, message: "Remove operation requires a path", scim_type: :no_target
   end
 
   # For now assume dot-separated paths like "name.familyName"
@@ -150,6 +160,9 @@ defmodule ExScim.Users.Patcher do
         ArgumentError ->
           # Path doesn't exist, create it
           create_nested_path(resource, keys, value, mode)
+
+        FunctionClauseError ->
+          raise_no_target(keys)
       end
     end
   end
@@ -169,6 +182,8 @@ defmodule ExScim.Users.Patcher do
       end
 
     put_in(resource, keys, final_value)
+  rescue
+    _ in [ArgumentError, FunctionClauseError] -> raise_no_target(keys)
   end
 
   # Helper to determine if a field should be treated as multi-valued
@@ -203,6 +218,14 @@ defmodule ExScim.Users.Patcher do
       {_, updated} = pop_in(resource, keys)
       updated
     end
+  rescue
+    FunctionClauseError -> raise_no_target(String.split(path, "."))
+  end
+
+  defp raise_no_target(keys) do
+    raise PatchError,
+      message: "Path #{inspect(Enum.join(keys, "."))} did not yield a valid target",
+      scim_type: :no_target
   end
 
   defp deep_merge(map1, map2) when is_map(map1) and is_map(map2) do

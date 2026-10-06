@@ -6,7 +6,6 @@ defmodule Provider.Scim.UserMapper do
   use ExScim.Users.Mapper.Adapter
 
   alias Provider.Accounts.User
-  alias ExScim.Config
 
   @impl true
   def from_scim(scim_data, _caller) do
@@ -24,11 +23,6 @@ defmodule Provider.Scim.UserMapper do
 
   @impl true
   def to_scim(%User{} = user, _caller, opts \\ []) do
-    location =
-      Keyword.get_lazy(opts, :location, fn ->
-        Config.resource_url("Users", user.id)
-      end)
-
     {:ok,
      %{
        "schemas" => ["urn:ietf:params:scim:schemas:core:2.0:User"],
@@ -39,7 +33,7 @@ defmodule Provider.Scim.UserMapper do
        "active" => user.active,
        "emails" => format_emails(user.email),
        "name" => format_name(user),
-       "meta" => format_meta(user, location: location, resource_type: "User")
+       "meta" => format_meta(user, Keyword.put(opts, :resource_type, "User"))
      }}
   end
 

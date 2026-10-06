@@ -103,8 +103,18 @@ defmodule ExScim.Error do
 
   @doc """
   Creates a standard SCIM error response structure.
+
+  `scimType` is omitted when `scim_type` is `nil`.
   """
-  @spec build_error_response(integer(), scim_type(), String.t()) :: error_response()
+  @spec build_error_response(integer(), scim_type() | nil, String.t()) :: error_response()
+  def build_error_response(status_code, nil, detail) do
+    %{
+      "schemas" => [@scim_error_schema],
+      "status" => Integer.to_string(status_code),
+      "detail" => detail
+    }
+  end
+
   def build_error_response(status_code, scim_type, detail) do
     %{
       "schemas" => [@scim_error_schema],

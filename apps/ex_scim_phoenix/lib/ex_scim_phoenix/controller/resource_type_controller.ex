@@ -9,6 +9,11 @@ defmodule ExScimPhoenix.Controller.ResourceTypeController do
 
   use Phoenix.Controller, formats: [:json]
 
+  plug(
+    ExScimPhoenix.Plugs.Authorize,
+    [resource: :resource_types, action: :read] when action in [:index, :show]
+  )
+
   @doc false
   def index(conn, _params) do
     resource_types = build_resource_types()

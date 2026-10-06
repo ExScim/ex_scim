@@ -138,44 +138,58 @@ defmodule ExScim.Groups.PatcherTest do
 
   describe "patch/2 validation" do
     test "rejects missing Operations key" do
-      assert {:error, "Missing required Operations field"} =
+      assert {:error, {:invalid_patch, :invalid_syntax, "Missing required Operations field"}} =
                Patcher.patch(%{}, %{"ops" => []})
     end
 
     test "rejects non-list Operations" do
-      assert {:error, "Operations must be an array"} =
+      assert {:error, {:invalid_patch, :invalid_syntax, "Operations must be an array"}} =
                Patcher.patch(%{}, %{"Operations" => "not_list"})
     end
 
     test "rejects empty Operations list" do
-      assert {:error, "Operations array cannot be empty"} =
+      assert {:error, {:invalid_patch, :invalid_syntax, "Operations array cannot be empty"}} =
                Patcher.patch(%{}, %{"Operations" => []})
     end
 
     test "rejects non-map input" do
-      assert {:error, "Patch operations must be a map"} =
+      assert {:error, {:invalid_patch, :invalid_syntax, "Patch operations must be a map"}} =
                Patcher.patch(%{}, "not a map")
     end
 
     test "returns error for unknown op" do
       ops = %{"Operations" => [%{"op" => "invalid", "path" => "x", "value" => "y"}]}
 
-      assert {:error, msg} = Patcher.patch(%{}, ops)
+      assert {:error, {:invalid_patch, :invalid_syntax, msg}} = Patcher.patch(%{}, ops)
       assert msg =~ "Unsupported op"
     end
 
     test "returns error for missing op field" do
       ops = %{"Operations" => [%{"path" => "x", "value" => "y"}]}
 
-      assert {:error, msg} = Patcher.patch(%{}, ops)
+      assert {:error, {:invalid_patch, :invalid_syntax, msg}} = Patcher.patch(%{}, ops)
       assert msg =~ "missing or invalid 'op' field"
     end
 
     test "returns error for add without value" do
       ops = %{"Operations" => [%{"op" => "add", "path" => "x"}]}
 
-      assert {:error, msg} = Patcher.patch(%{}, ops)
+      assert {:error, {:invalid_patch, :invalid_value, msg}} = Patcher.patch(%{}, ops)
       assert msg =~ "Add operation missing required 'value' field"
+    end
+
+    test "returns noTarget for remove without a path" do
+      ops = %{"Operations" => [%{"op" => "remove"}]}
+
+      assert {:error, {:invalid_patch, :no_target, _}} =
+               Patcher.patch(%{"displayName" => "Eng"}, ops)
+    end
+
+    test "returns noTarget for a path through a non-map value" do
+      ops = %{"Operations" => [%{"op" => "replace", "path" => "displayName.x", "value" => "y"}]}
+
+      assert {:error, {:invalid_patch, :no_target, _}} =
+               Patcher.patch(%{"displayName" => "Engineering"}, ops)
     end
   end
 end

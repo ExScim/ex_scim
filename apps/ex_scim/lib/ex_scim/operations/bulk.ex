@@ -4,7 +4,7 @@ defmodule ExScim.Operations.Bulk do
   alias ExScim.Operations.Users
   alias ExScim.Operations.Groups
   alias ExScim.Config
-  alias ExScim.Scope
+  alias ExScim.Authorization
 
   @bulk_request_schema "urn:ietf:params:scim:api:messages:2.0:BulkRequest"
   @bulk_response_schema "urn:ietf:params:scim:api:messages:2.0:BulkResponse"
@@ -47,12 +47,12 @@ defmodule ExScim.Operations.Bulk do
       * `:fail_on_errors` - Number of errors before stopping (default: 0 = continue)
       * `:max_operations` - Maximum operations allowed (default: 1000)
       * `:max_payload_size` - Maximum payload size in bytes (default: 1MB)
-      * `:base_url` - Base URL for location headers
 
   ## Returns
 
     * `{:ok, bulk_response}` - Bulk response with operation results
-    * `{:error, reason}` - Error if bulk request is invalid
+    * `{:error, {:too_large, message}}` - `:max_operations` or `:max_payload_size` exceeded
+    * `{:error, message}` - Error if bulk request is invalid
   """
   def process_bulk_request(bulk_request, caller, opts \\ []) do
     with {:ok, validated_request} <- validate_bulk_request(bulk_request, opts),
@@ -90,10 +90,10 @@ defmodule ExScim.Operations.Bulk do
         {:error, "Operations array cannot be empty"}
 
       length(bulk_request["Operations"]) > max_operations ->
-        {:error, "Too many operations. Maximum allowed: #{max_operations}"}
+        {:error, {:too_large, "Too many operations. Maximum allowed: #{max_operations}"}}
 
       estimate_payload_size(bulk_request) > max_payload_size ->
-        {:error, "Payload too large. Maximum allowed: #{max_payload_size} bytes"}
+        {:error, {:too_large, "Payload too large. Maximum allowed: #{max_payload_size} bytes"}}
 
       true ->
         {:ok, bulk_request}
@@ -163,7 +163,6 @@ defmodule ExScim.Operations.Bulk do
 
   defp execute_operations(operations, caller, opts) do
     fail_on_errors = Keyword.get(opts, :fail_on_errors, 0)
-    base_url = Keyword.get(opts, :base_url, Config.base_url())
 
     {response_operations, _error_count} =
       Enum.reduce(operations, {[], 0}, fn operation, {acc, error_count} ->
@@ -171,7 +170,7 @@ defmodule ExScim.Operations.Bulk do
           # Stop processing if we've hit the error limit
           {acc, error_count}
         else
-          result = execute_single_operation(operation, caller, base_url)
+          result = execute_single_operation(operation, caller)
 
           new_error_count =
             if result["status"] != "200" and result["status"] != "201",
@@ -185,35 +184,41 @@ defmodule ExScim.Operations.Bulk do
     {:ok, Enum.reverse(response_operations)}
   end
 
-  @method_scopes %{
-    "POST" => "scim:create",
-    "PUT" => "scim:update",
-    "PATCH" => "scim:update",
-    "DELETE" => "scim:delete"
+  @method_actions %{
+    "POST" => :create,
+    "PUT" => :update,
+    "PATCH" => :update,
+    "DELETE" => :delete
   }
 
-  defp execute_single_operation(operation, caller, base_url) do
-    required_scope = Map.fetch!(@method_scopes, operation.method)
+  defp execute_single_operation(operation, caller) do
+    operation
+    |> run_operation(caller)
+    |> put_location(operation, caller)
+  end
 
-    if Scope.has_scope?(caller, required_scope) do
-      case operation.method do
-        "POST" -> handle_post_operation(operation, caller, base_url)
-        "PUT" -> handle_put_operation(operation, caller, base_url)
-        "PATCH" -> handle_patch_operation(operation, caller, base_url)
-        "DELETE" -> handle_delete_operation(operation, caller, base_url)
-      end
-    else
-      %{
-        "method" => operation.method,
-        "bulkId" => operation.bulk_id,
-        "status" => "403",
-        "response" => %{
-          "schemas" => ["urn:ietf:params:scim:api:messages:2.0:Error"],
-          "scimType" => "insufficient_scope",
-          "detail" => "Missing required scope: #{required_scope}",
-          "status" => "403"
+  defp run_operation(operation, caller) do
+    case authorize_operation(operation, caller) do
+      :ok ->
+        case operation.method do
+          "POST" -> handle_post_operation(operation, caller)
+          "PUT" -> handle_put_operation(operation, caller)
+          "PATCH" -> handle_patch_operation(operation, caller)
+          "DELETE" -> handle_delete_operation(operation, caller)
+        end
+
+      {:error, denial} ->
+        %{
+          "method" => operation.method,
+          "bulkId" => operation.bulk_id,
+          "status" => "403",
+          "response" => %{
+            "schemas" => ["urn:ietf:params:scim:api:messages:2.0:Error"],
+            "scimType" => "insufficientScope",
+            "detail" => Authorization.denial_detail(denial),
+            "status" => "403"
+          }
         }
-      }
     end
   rescue
     error ->
@@ -229,7 +234,34 @@ defmodule ExScim.Operations.Bulk do
       }
   end
 
-  defp handle_post_operation(operation, caller, base_url) do
+  defp put_location(%{"location" => _} = result, _operation, _caller), do: result
+  defp put_location(result, %{method: "POST"}, _caller), do: result
+
+  defp put_location(result, operation, caller) do
+    case parse_path(operation.path) do
+      {:users, id} when is_binary(id) ->
+        Map.put(result, "location", Config.resource_url("Users", id, caller))
+
+      {:groups, id} when is_binary(id) ->
+        Map.put(result, "location", Config.resource_url("Groups", id, caller))
+
+      _ ->
+        result
+    end
+  end
+
+  defp authorize_operation(operation, caller) do
+    case parse_path(operation.path) do
+      {:unknown, _} ->
+        :ok
+
+      {resource_type, _} ->
+        action = Map.fetch!(@method_actions, operation.method)
+        Authorization.authorize(caller, resource_type, action)
+    end
+  end
+
+  defp handle_post_operation(operation, caller) do
     {resource_type, _resource_id} = parse_path(operation.path)
 
     case resource_type do
@@ -240,7 +272,7 @@ defmodule ExScim.Operations.Bulk do
               "method" => operation.method,
               "bulkId" => operation.bulk_id,
               "status" => "201",
-              "location" => "#{base_url}/scim/v2/Users/#{user["id"]}",
+              "location" => location(user, "Users", caller),
               "version" => get_in(user, ["meta", "version"]),
               "response" => user
             }
@@ -261,7 +293,7 @@ defmodule ExScim.Operations.Bulk do
               "method" => operation.method,
               "bulkId" => operation.bulk_id,
               "status" => "201",
-              "location" => "#{base_url}/scim/v2/Groups/#{group["id"]}",
+              "location" => location(group, "Groups", caller),
               "version" => get_in(group, ["meta", "version"]),
               "response" => group
             }
@@ -277,15 +309,15 @@ defmodule ExScim.Operations.Bulk do
 
       :unknown ->
         %{
-          method: operation.method,
-          bulkId: operation.bulk_id,
-          status: "400",
-          response: format_error_response("Invalid resource path", "400")
+          "method" => operation.method,
+          "bulkId" => operation.bulk_id,
+          "status" => "400",
+          "response" => format_error_response("Invalid resource path", "400")
         }
     end
   end
 
-  defp handle_put_operation(operation, caller, base_url) do
+  defp handle_put_operation(operation, caller) do
     {resource_type, resource_id} = parse_path(operation.path)
 
     case resource_type do
@@ -296,7 +328,7 @@ defmodule ExScim.Operations.Bulk do
               "method" => operation.method,
               "bulkId" => operation.bulk_id,
               "status" => "200",
-              "location" => "#{base_url}/scim/v2/Users/#{user["id"]}",
+              "location" => location(user, "Users", caller),
               "version" => get_in(user, ["meta", "version"]),
               "response" => user
             }
@@ -325,7 +357,7 @@ defmodule ExScim.Operations.Bulk do
               "method" => operation.method,
               "bulkId" => operation.bulk_id,
               "status" => "200",
-              "location" => "#{base_url}/scim/v2/Groups/#{group["id"]}",
+              "location" => location(group, "Groups", caller),
               "version" => get_in(group, ["meta", "version"]),
               "response" => group
             }
@@ -349,15 +381,15 @@ defmodule ExScim.Operations.Bulk do
 
       :unknown ->
         %{
-          method: operation.method,
-          bulkId: operation.bulk_id,
-          status: "400",
-          response: format_error_response("Invalid resource path", "400")
+          "method" => operation.method,
+          "bulkId" => operation.bulk_id,
+          "status" => "400",
+          "response" => format_error_response("Invalid resource path", "400")
         }
     end
   end
 
-  defp handle_patch_operation(operation, caller, base_url) do
+  defp handle_patch_operation(operation, caller) do
     {resource_type, resource_id} = parse_path(operation.path)
 
     case resource_type do
@@ -368,7 +400,7 @@ defmodule ExScim.Operations.Bulk do
               "method" => operation.method,
               "bulkId" => operation.bulk_id,
               "status" => "200",
-              "location" => "#{base_url}/scim/v2/Users/#{user["id"]}",
+              "location" => location(user, "Users", caller),
               "version" => get_in(user, ["meta", "version"]),
               "response" => user
             }
@@ -397,7 +429,7 @@ defmodule ExScim.Operations.Bulk do
               "method" => operation.method,
               "bulkId" => operation.bulk_id,
               "status" => "200",
-              "location" => "#{base_url}/scim/v2/Groups/#{group["id"]}",
+              "location" => location(group, "Groups", caller),
               "version" => get_in(group, ["meta", "version"]),
               "response" => group
             }
@@ -421,15 +453,15 @@ defmodule ExScim.Operations.Bulk do
 
       :unknown ->
         %{
-          method: operation.method,
-          bulkId: operation.bulk_id,
-          status: "400",
-          response: format_error_response("Invalid resource path", "400")
+          "method" => operation.method,
+          "bulkId" => operation.bulk_id,
+          "status" => "400",
+          "response" => format_error_response("Invalid resource path", "400")
         }
     end
   end
 
-  defp handle_delete_operation(operation, caller, _base_url) do
+  defp handle_delete_operation(operation, caller) do
     {resource_type, resource_id} = parse_path(operation.path)
 
     case resource_type do
@@ -487,10 +519,10 @@ defmodule ExScim.Operations.Bulk do
 
       :unknown ->
         %{
-          method: operation.method,
-          bulkId: operation.bulk_id,
-          status: "400",
-          response: format_error_response("Invalid resource path", "400")
+          "method" => operation.method,
+          "bulkId" => operation.bulk_id,
+          "status" => "400",
+          "response" => format_error_response("Invalid resource path", "400")
         }
     end
   end
@@ -508,6 +540,20 @@ defmodule ExScim.Operations.Bulk do
   end
 
   defp parse_path(_), do: {:unknown, nil}
+
+  defp location(resource, resource_type, caller) do
+    get_in(resource, ["meta", "location"]) ||
+      Config.resource_url(resource_type, to_string(resource["id"]), caller)
+  end
+
+  defp format_error_response({:invalid_patch, scim_type, message}, status) do
+    %{
+      "schemas" => ["urn:ietf:params:scim:api:messages:2.0:Error"],
+      "scimType" => ExScim.Error.scim_type_to_string(scim_type),
+      "detail" => message,
+      "status" => status
+    }
+  end
 
   defp format_error_response(reason, status) when is_binary(reason) do
     %{

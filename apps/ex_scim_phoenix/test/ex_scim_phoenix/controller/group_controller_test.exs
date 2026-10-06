@@ -138,6 +138,15 @@ defmodule ExScimPhoenix.Controller.GroupControllerTest do
       assert @group_schema in body["schemas"]
     end
 
+    test "sets the Location header to meta.location" do
+      conn = post(auth_conn(), "/Groups", scim_group("Engineering"))
+      body = json_response(conn, 201)
+
+      assert [location] = get_resp_header(conn, "location")
+      assert location == body["meta"]["location"]
+      assert location =~ "/scim/v2/Groups/#{body["id"]}"
+    end
+
     test "creates a group with members" do
       payload =
         scim_group("WithMembers")
@@ -230,8 +239,7 @@ defmodule ExScimPhoenix.Controller.GroupControllerTest do
       assert json_response(conn, 404)["schemas"] == [@error_schema]
     end
 
-    # SD-5: malformed patch op -> bare string error -> controller catch-all -> 500.
-    test "malformed patch op currently returns 500 (SD-5, current behavior)" do
+    test "rejects an unsupported op with 400 invalidSyntax" do
       created = create_group!("Engineering")
 
       patch = %{
@@ -240,7 +248,7 @@ defmodule ExScimPhoenix.Controller.GroupControllerTest do
       }
 
       conn = patch(auth_conn(), "/Groups/#{created["id"]}", patch)
-      assert json_response(conn, 500)["status"] == "500"
+      assert json_response(conn, 400)["scimType"] == "invalidSyntax"
     end
   end
 

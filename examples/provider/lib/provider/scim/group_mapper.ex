@@ -21,11 +21,6 @@ defmodule Provider.Scim.GroupMapper do
 
   @impl true
   def to_scim(%Group{} = group, _caller, opts \\ []) do
-    location =
-      Keyword.get_lazy(opts, :location, fn ->
-        Config.resource_url("Groups", group.id)
-      end)
-
     {:ok,
      %{
        "schemas" => ["urn:ietf:params:scim:schemas:core:2.0:Group"],
@@ -35,7 +30,7 @@ defmodule Provider.Scim.GroupMapper do
        "description" => group.description,
        "active" => group.active,
        "members" => format_members(group),
-       "meta" => format_meta(group, location: location, resource_type: "Group")
+       "meta" => format_meta(group, Keyword.put(opts, :resource_type, "Group"))
      }}
   end
 

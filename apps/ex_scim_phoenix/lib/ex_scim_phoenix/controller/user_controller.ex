@@ -13,23 +13,23 @@ defmodule ExScimPhoenix.Controller.UserController do
   alias ExScim.Operations.Users
 
   plug(
-    ExScimPhoenix.Plugs.RequireScopes,
-    [scopes: ["scim:read"]] when action in [:index, :show, :search]
+    ExScimPhoenix.Plugs.Authorize,
+    [resource: :users, action: :read] when action in [:index, :show, :search]
   )
 
   plug(
-    ExScimPhoenix.Plugs.RequireScopes,
-    [scopes: ["scim:create"]] when action in [:create]
+    ExScimPhoenix.Plugs.Authorize,
+    [resource: :users, action: :create] when action in [:create]
   )
 
   plug(
-    ExScimPhoenix.Plugs.RequireScopes,
-    [scopes: ["scim:update"]] when action in [:update, :patch]
+    ExScimPhoenix.Plugs.Authorize,
+    [resource: :users, action: :update] when action in [:update, :patch]
   )
 
   plug(
-    ExScimPhoenix.Plugs.RequireScopes,
-    [scopes: ["scim:delete"]] when action in [:delete]
+    ExScimPhoenix.Plugs.Authorize,
+    [resource: :users, action: :delete] when action in [:delete]
   )
 
   @scim_list_response_schema "urn:ietf:params:scim:api:messages:2.0:ListResponse"
@@ -161,24 +161,8 @@ defmodule ExScimPhoenix.Controller.UserController do
       {:error, :not_found} ->
         send_scim_error(conn, :not_found, :not_found, "User #{id} not found")
 
-      {:error, :invalid_patch_operation} ->
-        send_scim_error(conn, :bad_request, :invalid_syntax, "Invalid patch operation")
-
-      {:error, :no_target} ->
-        send_scim_error(
-          conn,
-          :bad_request,
-          :no_target,
-          "Path attribute did not yield a valid target"
-        )
-
-      {:error, :invalid_path} ->
-        send_scim_error(
-          conn,
-          :bad_request,
-          :invalid_path,
-          "Path attribute is invalid or malformed"
-        )
+      {:error, {:invalid_patch, scim_type, message}} ->
+        send_scim_error(conn, :bad_request, scim_type, message)
 
       {:error, :mapping_error} ->
         send_scim_error(conn, :internal_server_error, :internal_error, "Error mapping user data")

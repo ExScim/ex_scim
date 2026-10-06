@@ -1,6 +1,6 @@
 defmodule ExScimClient.Model.Core.Schema do
   @moduledoc """
-  SCIM schema definition (RFC 7643 §7)
+  SCIM schema definition (RFC 7643 Section 7)
   """
 
   @derive JSON.Encoder

@@ -48,6 +48,14 @@ defmodule ExScimPhoenix.Controller.UserControllerTest do
       assert length(body["Resources"]) == 2
     end
 
+    test "includes meta.location for each resource" do
+      create_user!("alice")
+
+      conn = get(auth_conn(), "/Users")
+      assert [user] = json_response(conn, 200)["Resources"]
+      assert user["meta"]["location"] =~ "/scim/v2/Users/#{user["id"]}"
+    end
+
     test "empty list when no users" do
       conn = get(auth_conn(), "/Users")
       body = json_response(conn, 200)
@@ -151,13 +159,13 @@ defmodule ExScimPhoenix.Controller.UserControllerTest do
       assert @user_schema in body["schemas"]
     end
 
-    # SD-4: the Operations layer calls to_scim/2 without a :location opt, so
-    # meta.location is nil and the controller emits no Location header, despite
-    # RFC 7644 §3.3 (SHOULD). Documented as current behavior pending a fix.
-    test "does NOT set a Location header (SD-4, current behavior)" do
+    test "sets the Location header to meta.location" do
       conn = post(auth_conn(), "/Users", scim_user("john.doe"))
-      assert json_response(conn, 201)
-      assert get_resp_header(conn, "location") == []
+      body = json_response(conn, 201)
+
+      assert [location] = get_resp_header(conn, "location")
+      assert location == body["meta"]["location"]
+      assert location =~ "/scim/v2/Users/#{body["id"]}"
     end
 
     test "rejects invalid payload (missing userName) with 400" do
@@ -249,12 +257,7 @@ defmodule ExScimPhoenix.Controller.UserControllerTest do
       assert json_response(conn, 404)["schemas"] == [@error_schema]
     end
 
-    # SD-5: the Patcher returns a bare string error (e.g. "Unsupported op: ...")
-    # for malformed ops. The controller has clauses for :invalid_patch_operation
-    # / :no_target / :invalid_path atoms (which the Patcher never emits) plus a
-    # list-of-errors clause; a string falls through to the catch-all -> 500.
-    # Ideally a malformed patch op would be a 400 invalidSyntax.
-    test "malformed patch op currently returns 500 (SD-5, current behavior)" do
+    test "rejects an unsupported op with 400 invalidSyntax" do
       created = create_user!("alice")
 
       patch = %{
@@ -263,10 +266,11 @@ defmodule ExScimPhoenix.Controller.UserControllerTest do
       }
 
       conn = patch(auth_conn(), "/Users/#{created["id"]}", patch)
-      body = json_response(conn, 500)
+      body = json_response(conn, 400)
 
       assert body["schemas"] == [@error_schema]
-      assert body["status"] == "500"
+      assert body["scimType"] == "invalidSyntax"
+      assert body["detail"] =~ "Unsupported op"
     end
   end
 

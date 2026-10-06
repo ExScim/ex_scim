@@ -5,12 +5,12 @@ defmodule Provider.Accounts.GroupMembership do
   alias Provider.Accounts.Group
 
   schema "group_memberships" do
-    field :type, :string
+    field(:type, :string)
     # field :group_id, :id
     # field :user_id, :id
 
-    belongs_to :group, Group
-    belongs_to :user, User
+    belongs_to(:group, Group)
+    belongs_to(:user, User)
 
     timestamps(type: :utc_datetime)
   end

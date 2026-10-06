@@ -83,6 +83,46 @@ defmodule ExScim.Operations.UsersTest do
     end
   end
 
+  describe "meta.location" do
+    defmodule TenantResolver do
+      @behaviour ExScim.Tenant.Resolver
+
+      @impl true
+      def resolve_tenant(_conn, _scope), do: {:ok, "acme"}
+
+      @impl true
+      def tenant_scim_base_url(tenant_id), do: "https://#{tenant_id}.example.com/scim/v2"
+    end
+
+    test "points to the user resource" do
+      {:ok, created} = create_test_user()
+
+      assert {:ok, scim_user} = Users.get_user(created["id"], @scope)
+      assert scim_user["meta"]["location"] =~ ~r{/scim/v2/Users/#{created["id"]}$}
+    end
+
+    test "uses the tenant base URL for every listed user" do
+      previous_resolver = Application.get_env(:ex_scim, :tenant_resolver)
+      Application.put_env(:ex_scim, :tenant_resolver, TenantResolver)
+
+      on_exit(fn ->
+        if previous_resolver do
+          Application.put_env(:ex_scim, :tenant_resolver, previous_resolver)
+        else
+          Application.delete_env(:ex_scim, :tenant_resolver)
+        end
+      end)
+
+      {:ok, created} = create_test_user()
+      scope = %{@scope | tenant_id: "acme"}
+
+      assert {:ok, [scim_user], 1} = Users.list_users_scim(scope)
+
+      assert scim_user["meta"]["location"] ==
+               "https://acme.example.com/scim/v2/Users/#{created["id"]}"
+    end
+  end
+
   describe "list_users_scim/2" do
     test "returns SCIM list with users and total count" do
       {:ok, _} = create_test_user("alice")

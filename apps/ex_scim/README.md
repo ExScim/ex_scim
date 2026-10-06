@@ -16,10 +16,10 @@ SCIM 2.0 implementation for Elixir. Adapter-based and modular - bring your own s
 Add the packages you need to `mix.exs`:
 
 ```elixir
-{:ex_scim, "~> 0.2"},
-{:ex_scim_ecto, "~> 0.2"},        # optional: Ecto storage
-{:ex_scim_phoenix, "~> 0.2"},     # optional: Phoenix endpoints
-{:ex_scim_client, "~> 0.2"}       # optional: HTTP client
+{:ex_scim, "~> 0.3"},
+{:ex_scim_ecto, "~> 0.3"},        # optional: Ecto storage
+{:ex_scim_phoenix, "~> 0.3"},     # optional: Phoenix endpoints
+{:ex_scim_client, "~> 0.3"}       # optional: HTTP client
 ```
 
 ## Quick Start
