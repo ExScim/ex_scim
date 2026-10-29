@@ -136,6 +136,259 @@ defmodule ExScim.Groups.PatcherTest do
     end
   end
 
+  describe "patch/2 attribute name mapping" do
+    setup do
+      struct = %ExScim.Groups.Group{
+        id: "group-123",
+        display_name: "Engineering",
+        members: [%{"value" => "user-1", "display" => "Alice"}]
+      }
+
+      atom_map = %{
+        id: "group-123",
+        external_id: nil,
+        display_name: "Engineering",
+        members: [%{"value" => "user-1", "display" => "Alice"}]
+      }
+
+      {:ok, struct: struct, atom_map: atom_map}
+    end
+
+    test "replace displayName on a struct sets display_name", %{struct: group} do
+      ops = %{"Operations" => [%{"op" => "replace", "path" => "displayName", "value" => "Eng"}]}
+
+      assert {:ok, patched} = Patcher.patch(group, ops)
+      assert patched.display_name == "Eng"
+    end
+
+    test "replace displayName on an atom-keyed map sets :display_name", %{atom_map: group} do
+      ops = %{"Operations" => [%{"op" => "replace", "path" => "displayName", "value" => "Eng"}]}
+
+      assert {:ok, patched} = Patcher.patch(group, ops)
+      assert patched.display_name == "Eng"
+      refute Map.has_key?(patched, "displayName")
+    end
+
+    test "attribute names are case-insensitive", %{struct: group} do
+      ops = %{"Operations" => [%{"op" => "Replace", "path" => "DISPLAYNAME", "value" => "Eng"}]}
+
+      assert {:ok, patched} = Patcher.patch(group, ops)
+      assert patched.display_name == "Eng"
+    end
+
+    test "schema-qualified path", %{struct: group} do
+      ops = %{
+        "Operations" => [
+          %{
+            "op" => "replace",
+            "path" => "urn:ietf:params:scim:schemas:core:2.0:Group:displayName",
+            "value" => "Eng"
+          }
+        ]
+      }
+
+      assert {:ok, patched} = Patcher.patch(group, ops)
+      assert patched.display_name == "Eng"
+    end
+
+    test "replace without path maps value keys", %{struct: group} do
+      ops = %{
+        "Operations" => [
+          %{"op" => "replace", "value" => %{"displayName" => "Eng", "externalId" => "ext-1"}}
+        ]
+      }
+
+      assert {:ok, patched} = Patcher.patch(group, ops)
+      assert patched.display_name == "Eng"
+      assert patched.external_id == "ext-1"
+    end
+
+    test "add without path maps value keys on an atom-keyed map", %{atom_map: group} do
+      ops = %{
+        "Operations" => [
+          %{
+            "op" => "add",
+            "value" => %{
+              "externalId" => "ext-1",
+              "members" => [%{"value" => "user-2"}]
+            }
+          }
+        ]
+      }
+
+      assert {:ok, patched} = Patcher.patch(group, ops)
+      assert patched.external_id == "ext-1"
+      assert Enum.map(patched.members, & &1["value"]) == ["user-1", "user-2"]
+      refute Map.has_key?(patched, "externalId")
+    end
+
+    test "add on a single-valued attribute replaces it", %{atom_map: group} do
+      ops = %{"Operations" => [%{"op" => "add", "path" => "displayName", "value" => "Eng"}]}
+
+      assert {:ok, patched} = Patcher.patch(group, ops)
+      assert patched.display_name == "Eng"
+    end
+
+    test "add members to a struct without members creates a list" do
+      group = ExScim.Groups.Group.new("Engineering")
+
+      ops = %{
+        "Operations" => [%{"op" => "add", "path" => "members", "value" => %{"value" => "u"}}]
+      }
+
+      assert {:ok, patched} = Patcher.patch(group, ops)
+      assert patched.members == [%{"value" => "u"}]
+    end
+
+    test "remove displayName on a struct sets display_name to nil", %{struct: group} do
+      ops = %{"Operations" => [%{"op" => "remove", "path" => "displayName"}]}
+
+      assert {:ok, patched} = Patcher.patch(group, ops)
+      assert is_nil(patched.display_name)
+    end
+  end
+
+  describe "patch/2 with filtered member paths" do
+    setup do
+      members = [
+        %{"value" => "user-1", "display" => "Alice"},
+        %{"value" => "user-2", "display" => "Bob"},
+        %{"value" => "user-3", "display" => "Carol"}
+      ]
+
+      struct = %ExScim.Groups.Group{id: "group-123", display_name: "Eng", members: members}
+      map = %{"id" => "group-123", "displayName" => "Eng", "members" => members}
+
+      {:ok, struct: struct, map: map}
+    end
+
+    defp member_ids(members), do: Enum.map(members, & &1["value"])
+
+    test "remove a single member from a struct", %{struct: group} do
+      ops = %{
+        "Operations" => [%{"op" => "remove", "path" => ~s(members[value eq "user-2"])}]
+      }
+
+      assert {:ok, patched} = Patcher.patch(group, ops)
+      assert member_ids(patched.members) == ["user-1", "user-3"]
+    end
+
+    test "remove a single member from a map", %{map: group} do
+      ops = %{
+        "Operations" => [%{"op" => "remove", "path" => ~s(members[value eq "user-2"])}]
+      }
+
+      assert {:ok, patched} = Patcher.patch(group, ops)
+      assert member_ids(patched["members"]) == ["user-1", "user-3"]
+    end
+
+    test "remove with a logical filter", %{struct: group} do
+      ops = %{
+        "Operations" => [
+          %{"op" => "remove", "path" => ~s(members[value eq "user-1" or display sw "Car"])}
+        ]
+      }
+
+      assert {:ok, patched} = Patcher.patch(group, ops)
+      assert member_ids(patched.members) == ["user-2"]
+    end
+
+    test "remove with a filter that matches nothing leaves members unchanged", %{struct: group} do
+      ops = %{
+        "Operations" => [%{"op" => "remove", "path" => ~s(members[value eq "user-9"])}]
+      }
+
+      assert {:ok, patched} = Patcher.patch(group, ops)
+      assert patched.members == group.members
+    end
+
+    test "remove a sub-attribute of matching members", %{struct: group} do
+      ops = %{
+        "Operations" => [%{"op" => "remove", "path" => ~s(members[value eq "user-1"].display)}]
+      }
+
+      assert {:ok, patched} = Patcher.patch(group, ops)
+      assert hd(patched.members) == %{"value" => "user-1"}
+      assert length(patched.members) == 3
+    end
+
+    test "remove members listed in value", %{struct: group} do
+      ops = %{
+        "Operations" => [
+          %{
+            "op" => "Remove",
+            "path" => "members",
+            "value" => [%{"value" => "user-1"}, %{"value" => "user-3"}]
+          }
+        ]
+      }
+
+      assert {:ok, patched} = Patcher.patch(group, ops)
+      assert member_ids(patched.members) == ["user-2"]
+    end
+
+    test "replace a sub-attribute of matching members", %{struct: group} do
+      ops = %{
+        "Operations" => [
+          %{
+            "op" => "replace",
+            "path" => ~s(members[value eq "user-2"].display),
+            "value" => "Robert"
+          }
+        ]
+      }
+
+      assert {:ok, patched} = Patcher.patch(group, ops)
+      assert Enum.at(patched.members, 1) == %{"value" => "user-2", "display" => "Robert"}
+    end
+
+    test "replace matching members", %{struct: group} do
+      ops = %{
+        "Operations" => [
+          %{
+            "op" => "replace",
+            "path" => ~s(members[value eq "user-2"]),
+            "value" => %{"value" => "user-4"}
+          }
+        ]
+      }
+
+      assert {:ok, patched} = Patcher.patch(group, ops)
+      assert member_ids(patched.members) == ["user-1", "user-4", "user-3"]
+    end
+
+    test "add with an unmatched eq filter appends a new member", %{struct: group} do
+      ops = %{
+        "Operations" => [
+          %{
+            "op" => "add",
+            "path" => ~s(members[value eq "user-4"]),
+            "value" => %{"display" => "Dave"}
+          }
+        ]
+      }
+
+      assert {:ok, patched} = Patcher.patch(group, ops)
+      assert List.last(patched.members) == %{"value" => "user-4", "display" => "Dave"}
+    end
+
+    test "replace with a filter that matches nothing returns noTarget", %{struct: group} do
+      ops = %{
+        "Operations" => [
+          %{"op" => "replace", "path" => ~s(members[value eq "user-9"].display), "value" => "X"}
+        ]
+      }
+
+      assert {:error, {:invalid_patch, :no_target, _}} = Patcher.patch(group, ops)
+    end
+
+    test "invalid filter returns invalidFilter", %{struct: group} do
+      ops = %{"Operations" => [%{"op" => "remove", "path" => "members[value zz 1]"}]}
+
+      assert {:error, {:invalid_patch, :invalid_filter, _}} = Patcher.patch(group, ops)
+    end
+  end
+
   describe "patch/2 validation" do
     test "rejects missing Operations key" do
       assert {:error, {:invalid_patch, :invalid_syntax, "Missing required Operations field"}} =

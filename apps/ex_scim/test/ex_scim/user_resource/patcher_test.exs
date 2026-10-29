@@ -390,6 +390,221 @@ defmodule ExScim.Users.PatcherTest do
     end
   end
 
+  describe "patch/2 attribute name mapping" do
+    setup do
+      struct = %ExScim.Users.User{
+        id: "user-123",
+        user_name: "john.doe",
+        display_name: "John Doe",
+        name: %{"givenName" => "John", "familyName" => "Doe"},
+        emails: [%{"value" => "john@work.com", "type" => "work"}],
+        active: true
+      }
+
+      atom_map = %{
+        id: "user-123",
+        external_id: nil,
+        user_name: "john.doe",
+        display_name: "John Doe",
+        name: %{"givenName" => "John", "familyName" => "Doe"},
+        emails: [%{"value" => "john@work.com", "type" => "work"}],
+        active: true
+      }
+
+      {:ok, struct: struct, atom_map: atom_map}
+    end
+
+    test "replace userName on a struct sets user_name", %{struct: user} do
+      ops = %{"Operations" => [%{"op" => "replace", "path" => "userName", "value" => "jd"}]}
+
+      assert {:ok, patched} = Patcher.patch(user, ops)
+      assert patched.user_name == "jd"
+    end
+
+    test "replace displayName on an atom-keyed map sets :display_name", %{atom_map: user} do
+      ops = %{"Operations" => [%{"op" => "replace", "path" => "displayName", "value" => "JD"}]}
+
+      assert {:ok, patched} = Patcher.patch(user, ops)
+      assert patched.display_name == "JD"
+      refute Map.has_key?(patched, "displayName")
+    end
+
+    test "replace a nested attribute inside a struct field", %{struct: user} do
+      ops = %{
+        "Operations" => [%{"op" => "replace", "path" => "name.givenName", "value" => "Jon"}]
+      }
+
+      assert {:ok, patched} = Patcher.patch(user, ops)
+      assert patched.name == %{"givenName" => "Jon", "familyName" => "Doe"}
+    end
+
+    test "replace a nested attribute inside a nil struct field" do
+      user = %ExScim.Users.User{user_name: "john.doe"}
+
+      ops = %{
+        "Operations" => [%{"op" => "replace", "path" => "name.givenName", "value" => "Jon"}]
+      }
+
+      assert {:ok, patched} = Patcher.patch(user, ops)
+      assert patched.name == %{"givenName" => "Jon"}
+    end
+
+    test "attribute names are case-insensitive", %{struct: user} do
+      ops = %{"Operations" => [%{"op" => "Replace", "path" => "USERNAME", "value" => "jd"}]}
+
+      assert {:ok, patched} = Patcher.patch(user, ops)
+      assert patched.user_name == "jd"
+    end
+
+    test "schema-qualified path", %{struct: user} do
+      ops = %{
+        "Operations" => [
+          %{
+            "op" => "replace",
+            "path" => "urn:ietf:params:scim:schemas:core:2.0:User:userName",
+            "value" => "jd"
+          }
+        ]
+      }
+
+      assert {:ok, patched} = Patcher.patch(user, ops)
+      assert patched.user_name == "jd"
+    end
+
+    test "replace without path maps value keys", %{struct: user} do
+      ops = %{
+        "Operations" => [
+          %{
+            "op" => "replace",
+            "value" => %{"active" => false, "displayName" => "JD", "externalId" => "ext-1"}
+          }
+        ]
+      }
+
+      assert {:ok, patched} = Patcher.patch(user, ops)
+      assert patched.active == false
+      assert patched.display_name == "JD"
+      assert patched.external_id == "ext-1"
+    end
+
+    test "add phoneNumbers to an atom-keyed map without them" do
+      user = %{id: "user-123", user_name: "john.doe", phone_numbers: nil}
+
+      ops = %{
+        "Operations" => [
+          %{"op" => "add", "path" => "phoneNumbers", "value" => %{"value" => "+1-555-0100"}}
+        ]
+      }
+
+      assert {:ok, patched} = Patcher.patch(user, ops)
+      assert patched.phone_numbers == [%{"value" => "+1-555-0100"}]
+    end
+
+    test "add on a single-valued attribute replaces it", %{atom_map: user} do
+      ops = %{"Operations" => [%{"op" => "add", "path" => "displayName", "value" => "JD"}]}
+
+      assert {:ok, patched} = Patcher.patch(user, ops)
+      assert patched.display_name == "JD"
+    end
+  end
+
+  describe "patch/2 with filtered paths" do
+    setup do
+      emails = [
+        %{"value" => "john@work.com", "type" => "work", "primary" => true},
+        %{"value" => "john@home.com", "type" => "home", "primary" => false}
+      ]
+
+      struct = %ExScim.Users.User{id: "user-123", user_name: "john.doe", emails: emails}
+      map = %{"id" => "user-123", "userName" => "john.doe", "emails" => emails}
+
+      {:ok, struct: struct, map: map}
+    end
+
+    test "replace the value of the work email", %{struct: user} do
+      ops = %{
+        "Operations" => [
+          %{
+            "op" => "replace",
+            "path" => ~s(emails[type eq "work"].value),
+            "value" => "jd@work.com"
+          }
+        ]
+      }
+
+      assert {:ok, patched} = Patcher.patch(user, ops)
+      assert Enum.map(patched.emails, & &1["value"]) == ["jd@work.com", "john@home.com"]
+    end
+
+    test "remove the home email from a map", %{map: user} do
+      ops = %{"Operations" => [%{"op" => "remove", "path" => ~s(emails[type eq "home"])}]}
+
+      assert {:ok, patched} = Patcher.patch(user, ops)
+      assert Enum.map(patched["emails"], & &1["type"]) == ["work"]
+    end
+
+    test "filter on a boolean sub-attribute", %{struct: user} do
+      ops = %{"Operations" => [%{"op" => "remove", "path" => "emails[primary eq true]"}]}
+
+      assert {:ok, patched} = Patcher.patch(user, ops)
+      assert Enum.map(patched.emails, & &1["type"]) == ["home"]
+    end
+
+    test "add with an unmatched eq filter appends a new value", %{struct: user} do
+      ops = %{
+        "Operations" => [
+          %{
+            "op" => "add",
+            "path" => ~s(emails[type eq "other"].value),
+            "value" => "jd@other.com"
+          }
+        ]
+      }
+
+      assert {:ok, patched} = Patcher.patch(user, ops)
+      assert List.last(patched.emails) == %{"type" => "other", "value" => "jd@other.com"}
+      assert length(patched.emails) == 3
+    end
+
+    test "add with an eq filter creates a missing attribute" do
+      user = %{"userName" => "john.doe"}
+
+      ops = %{
+        "Operations" => [
+          %{
+            "op" => "add",
+            "path" => ~s(phoneNumbers[type eq "work"].value),
+            "value" => "+1-555-0100"
+          }
+        ]
+      }
+
+      assert {:ok, patched} = Patcher.patch(user, ops)
+      assert patched["phoneNumbers"] == [%{"type" => "work", "value" => "+1-555-0100"}]
+    end
+
+    test "replace with an unmatched filter returns noTarget", %{struct: user} do
+      ops = %{
+        "Operations" => [
+          %{"op" => "replace", "path" => ~s(emails[type eq "other"].value), "value" => "x"}
+        ]
+      }
+
+      assert {:error, {:invalid_patch, :no_target, _}} = Patcher.patch(user, ops)
+    end
+
+    test "remove emails listed in value", %{struct: user} do
+      ops = %{
+        "Operations" => [
+          %{"op" => "remove", "path" => "emails", "value" => [%{"value" => "john@work.com"}]}
+        ]
+      }
+
+      assert {:ok, patched} = Patcher.patch(user, ops)
+      assert Enum.map(patched.emails, & &1["value"]) == ["john@home.com"]
+    end
+  end
+
   describe "SCIM compliance" do
     test "validates patch operations format" do
       valid_patch = valid_patch_operations()

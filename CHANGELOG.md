@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ex_scim
+
+#### Added
+
+- PATCH filtered paths (`emails[type eq "work"].value`, `members[value eq "..."]`)
+- PATCH `add` with an unmatched `eq` filter appending a new value
+- PATCH `remove` of the values listed in `value`
+
+#### Fixed
+
+- PATCH attribute names on structs and atom-keyed maps (`displayName` to `:display_name`), case-insensitive and schema-qualified
+- PATCH without `path` on structs and atom-keyed maps
+- PATCH `add` on a single-valued attribute wrapping the value in a list
+- PATCH crash on a nested path through a `nil` struct field
+
 ## [0.3.0] - 2026-10-06
 
 ### ex_scim
