@@ -61,7 +61,8 @@ defmodule ExScim.Operations.Users do
          data_with_id <- maybe_set_id(mapped_data),
          data_with_metadata <- Metadata.update_metadata(data_with_id, "User"),
          {:ok, hooked_data} <- Lifecycle.before_create(:user, data_with_metadata, scope),
-         {:ok, stored_user} <- Storage.create_user(hooked_data, scope),
+         {:ok, stored_user} <-
+           store(:create, scope, fn -> Storage.create_user(hooked_data, scope) end),
          {:ok, scim_user} <- to_scim(stored_user, scope) do
       Lifecycle.after_create(:user, scim_user, scope)
       {:ok, scim_user}
@@ -87,7 +88,8 @@ defmodule ExScim.Operations.Users do
            Map.put(user_with_id, :meta_created, Map.get(existing_user, :meta_created)),
          user_with_meta <- Metadata.update_metadata(user_with_created, "User"),
          {:ok, hooked_data} <- Lifecycle.before_replace(:user, user_id, user_with_meta, scope),
-         {:ok, stored_user} <- Storage.replace_user(user_id, hooked_data, scope),
+         {:ok, stored_user} <-
+           store(:replace, scope, fn -> Storage.replace_user(user_id, hooked_data, scope) end),
          {:ok, scim_user} <- to_scim(stored_user, scope) do
       Lifecycle.after_replace(:user, scim_user, scope)
       {:ok, scim_user}
@@ -111,7 +113,8 @@ defmodule ExScim.Operations.Users do
          {:ok, patched_user} <- Patcher.patch(domain_user, schema_validated_data),
          user_with_meta <- Metadata.update_metadata(patched_user, "User"),
          {:ok, hooked_data} <- Lifecycle.before_patch(:user, user_id, user_with_meta, scope),
-         {:ok, stored_user} <- Storage.update_user(user_id, hooked_data, scope),
+         {:ok, stored_user} <-
+           store(:patch, scope, fn -> Storage.update_user(user_id, hooked_data, scope) end),
          {:ok, scim_user} <- to_scim(stored_user, scope) do
       Lifecycle.after_patch(:user, scim_user, scope)
       {:ok, scim_user}
@@ -125,7 +128,7 @@ defmodule ExScim.Operations.Users do
   @doc "Deletes a user by ID with lifecycle hooks. Returns `:ok` or `{:error, reason}`."
   def delete_user(user_id, scope) do
     with :ok <- Lifecycle.before_delete(:user, user_id, scope),
-         :ok <- Storage.delete_user(user_id, scope) do
+         :ok <- delete(user_id, scope) do
       Lifecycle.after_delete(:user, user_id, scope)
       :ok
     else
@@ -133,6 +136,23 @@ defmodule ExScim.Operations.Users do
         Lifecycle.on_error(:delete, :user, error, scope)
         error
     end
+  end
+
+  defp store(operation, scope, write) do
+    Storage.transaction(fn ->
+      with {:ok, stored} <- write.(),
+           :ok <- Lifecycle.before_commit(operation, :user, stored, scope) do
+        {:ok, stored}
+      end
+    end)
+  end
+
+  defp delete(user_id, scope) do
+    Storage.transaction(fn ->
+      with :ok <- Storage.delete_user(user_id, scope) do
+        Lifecycle.before_commit(:delete, :user, user_id, scope)
+      end
+    end)
   end
 
   defp to_scim(user, scope, base_url \\ nil) do

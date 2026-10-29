@@ -16,7 +16,17 @@ defmodule ExScim.Lifecycle.Adapter do
 
   ## After hooks
 
-  Fire after successful storage + SCIM response mapping. Observe-only (return `:ok`).
+  Fire after the write is committed and mapped to a SCIM response. Observe-only
+  (return `:ok`).
+
+  ## Before-commit hook
+
+  `before_commit/4` runs inside the storage transaction, right after the write
+  for create, replace, patch, and delete. It receives the record returned by
+  storage, or the ID for delete. Returning `{:error, reason}` or raising rolls
+  back the write, skips the after hook, and fires `on_error`. Use it for work
+  that must be committed with the write. Without
+  `c:ExScim.Storage.Adapter.transaction/1`, the write is not rolled back.
 
   ## Error hook
 
@@ -62,6 +72,9 @@ defmodule ExScim.Lifecycle.Adapter do
   @typedoc "The SCIM operation type that triggered the hook."
   @type operation :: :create | :replace | :patch | :delete | :get
 
+  @typedoc "The SCIM operations that write to storage."
+  @type write_operation :: :create | :replace | :patch | :delete
+
   # Before hooks: can modify data or reject
 
   @doc "Fires before a resource is created. Return `{:ok, data}` to proceed or `{:error, reason}` to reject."
@@ -101,6 +114,21 @@ defmodule ExScim.Lifecycle.Adapter do
   @doc "Fires after a resource is successfully retrieved. Observe-only."
   @callback after_get(resource_type(), scim_response(), caller()) :: :ok
 
+  # Before-commit hook: runs in the storage transaction
+
+  @doc """
+  Fires inside the storage transaction after a write. Receives the record
+  returned by storage, or the ID for delete. Return `:ok` to commit or
+  `{:error, reason}` to roll back.
+  """
+  @callback before_commit(
+              write_operation(),
+              resource_type(),
+              resource_data() | resource_id(),
+              caller()
+            ) ::
+              :ok | {:error, term()}
+
   # Error hook: observe only
 
   @doc "Fires when an operation fails. Observe-only; intended for logging or metrics."
@@ -117,6 +145,7 @@ defmodule ExScim.Lifecycle.Adapter do
     after_patch: 3,
     after_delete: 3,
     after_get: 3,
+    before_commit: 4,
     on_error: 4
   ]
 
@@ -157,6 +186,9 @@ defmodule ExScim.Lifecycle.Adapter do
       def after_get(_resource_type, _scim_response, _caller), do: :ok
 
       @impl true
+      def before_commit(_operation, _resource_type, _resource, _caller), do: :ok
+
+      @impl true
       def on_error(_operation, _resource_type, _error, _caller), do: :ok
 
       defoverridable before_create: 3,
@@ -169,6 +201,7 @@ defmodule ExScim.Lifecycle.Adapter do
                      after_patch: 3,
                      after_delete: 3,
                      after_get: 3,
+                     before_commit: 4,
                      on_error: 4
     end
   end

@@ -82,6 +82,10 @@ defmodule ExScimEcto.StorageAdapter do
   SCIM attribute paths to domain field atoms, and `field_mapping` then resolves
   domain field atoms to DB columns with value transformation.
 
+  Each create, replace, patch, and delete runs in a `storage_repo` transaction
+  together with `c:ExScim.Lifecycle.Adapter.before_commit/4`. Writes the hook
+  makes through the same repo are part of that transaction.
+
   See also `ExScim.Resources.Resource`.
   """
 
@@ -383,6 +387,23 @@ defmodule ExScimEcto.StorageAdapter do
     query = apply_tenant_scope(query, tenant_key, scope)
 
     repo().aggregate(query, :count) > 0
+  end
+
+  @doc false
+  @impl true
+  def transaction(fun) do
+    repo = repo()
+
+    repo.transaction(fn ->
+      case fun.() do
+        {:error, reason} -> repo.rollback(reason)
+        result -> result
+      end
+    end)
+    |> case do
+      {:ok, result} -> result
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   # Private helper functions

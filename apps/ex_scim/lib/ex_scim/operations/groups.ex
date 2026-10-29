@@ -61,7 +61,8 @@ defmodule ExScim.Operations.Groups do
          data_with_id <- maybe_set_id(mapped_data),
          data_with_metadata <- Metadata.update_metadata(data_with_id, "Group"),
          {:ok, hooked_data} <- Lifecycle.before_create(:group, data_with_metadata, scope),
-         {:ok, stored_group} <- Storage.create_group(hooked_data, scope),
+         {:ok, stored_group} <-
+           store(:create, scope, fn -> Storage.create_group(hooked_data, scope) end),
          {:ok, scim_group} <- to_scim(stored_group, scope) do
       Lifecycle.after_create(:group, scim_group, scope)
       {:ok, scim_group}
@@ -88,7 +89,8 @@ defmodule ExScim.Operations.Groups do
          group_with_meta <- Metadata.update_metadata(group_with_created, "Group"),
          {:ok, hooked_data} <-
            Lifecycle.before_replace(:group, group_id, group_with_meta, scope),
-         {:ok, stored_group} <- Storage.replace_group(group_id, hooked_data, scope),
+         {:ok, stored_group} <-
+           store(:replace, scope, fn -> Storage.replace_group(group_id, hooked_data, scope) end),
          {:ok, scim_group} <- to_scim(stored_group, scope) do
       Lifecycle.after_replace(:group, scim_group, scope)
       {:ok, scim_group}
@@ -113,7 +115,8 @@ defmodule ExScim.Operations.Groups do
          group_with_meta <- Metadata.update_metadata(patched_group, "Group"),
          {:ok, hooked_data} <-
            Lifecycle.before_patch(:group, group_id, group_with_meta, scope),
-         {:ok, stored_group} <- Storage.update_group(group_id, hooked_data, scope),
+         {:ok, stored_group} <-
+           store(:patch, scope, fn -> Storage.update_group(group_id, hooked_data, scope) end),
          {:ok, scim_group} <- to_scim(stored_group, scope) do
       Lifecycle.after_patch(:group, scim_group, scope)
       {:ok, scim_group}
@@ -127,7 +130,7 @@ defmodule ExScim.Operations.Groups do
   @doc "Deletes a group by ID with lifecycle hooks. Returns `:ok` or `{:error, reason}`."
   def delete_group(group_id, scope) do
     with :ok <- Lifecycle.before_delete(:group, group_id, scope),
-         :ok <- Storage.delete_group(group_id, scope) do
+         :ok <- delete(group_id, scope) do
       Lifecycle.after_delete(:group, group_id, scope)
       :ok
     else
@@ -135,6 +138,23 @@ defmodule ExScim.Operations.Groups do
         Lifecycle.on_error(:delete, :group, error, scope)
         error
     end
+  end
+
+  defp store(operation, scope, write) do
+    Storage.transaction(fn ->
+      with {:ok, stored} <- write.(),
+           :ok <- Lifecycle.before_commit(operation, :group, stored, scope) do
+        {:ok, stored}
+      end
+    end)
+  end
+
+  defp delete(group_id, scope) do
+    Storage.transaction(fn ->
+      with :ok <- Storage.delete_group(group_id, scope) do
+        Lifecycle.before_commit(:delete, :group, group_id, scope)
+      end
+    end)
   end
 
   defp to_scim(group, scope, base_url \\ nil) do

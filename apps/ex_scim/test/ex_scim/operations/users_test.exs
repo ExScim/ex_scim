@@ -4,6 +4,7 @@ defmodule ExScim.Operations.UsersTest do
   alias ExScim.Operations.Users
 
   import ExScim.TestFixtures
+  import ExUnit.CaptureLog
 
   @scope %ExScim.Scope{
     id: "test-client",
@@ -483,6 +484,88 @@ defmodule ExScim.Operations.UsersTest do
     end
   end
 
+  describe "before_commit" do
+    test "receives the stored user, or the ID on delete" do
+      Application.put_env(:ex_scim, :lifecycle_adapter, ExScim.Test.TestLifecycle)
+      {:ok, %{"id" => id}} = create_test_user()
+
+      replacement = %{
+        "schemas" => ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "userName" => "replaced.user"
+      }
+
+      patch_data = %{
+        "schemas" => ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+        "Operations" => [%{"op" => "replace", "path" => "userName", "value" => "patched.user"}]
+      }
+
+      {:ok, _} = Users.replace_user_from_scim(id, replacement, @scope)
+      {:ok, _} = Users.patch_user_from_scim(id, patch_data, @scope)
+      :ok = Users.delete_user(id, @scope)
+
+      assert [
+               {:create, :user, %{id: ^id}, @scope},
+               {:replace, :user, %{id: ^id, user_name: "replaced.user"}, @scope},
+               {:patch, :user, %{id: ^id, user_name: "patched.user"}, @scope},
+               {:delete, :user, ^id, @scope}
+             ] = for({:before_commit, args} <- Process.get(:lifecycle_calls, []), do: args)
+    end
+
+    test "error rolls back create" do
+      Application.put_env(:ex_scim, :lifecycle_adapter, ExScim.Test.RejectingCommitLifecycle)
+
+      assert {:error, {:forbidden, _}} =
+               Users.create_user_from_scim(valid_scim_user_attrs(), @scope)
+
+      assert {:ok, [], 0} = Users.list_users_scim(@scope)
+    end
+
+    test "error rolls back replace" do
+      {:ok, %{"id" => id}} = create_test_user()
+      Application.put_env(:ex_scim, :lifecycle_adapter, ExScim.Test.RejectingCommitLifecycle)
+
+      replacement = %{
+        "schemas" => ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        "userName" => "replaced.user"
+      }
+
+      assert {:error, {:forbidden, _}} = Users.replace_user_from_scim(id, replacement, @scope)
+      assert {:ok, %{"userName" => "john.doe"}} = Users.get_user(id, @scope)
+    end
+
+    test "error rolls back patch" do
+      {:ok, %{"id" => id}} = create_test_user()
+      Application.put_env(:ex_scim, :lifecycle_adapter, ExScim.Test.RejectingCommitLifecycle)
+
+      patch_data = %{
+        "schemas" => ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+        "Operations" => [%{"op" => "replace", "path" => "userName", "value" => "patched.user"}]
+      }
+
+      assert {:error, {:forbidden, _}} = Users.patch_user_from_scim(id, patch_data, @scope)
+      assert {:ok, %{"userName" => "john.doe"}} = Users.get_user(id, @scope)
+    end
+
+    test "error rolls back delete" do
+      {:ok, %{"id" => id}} = create_test_user()
+      Application.put_env(:ex_scim, :lifecycle_adapter, ExScim.Test.RejectingCommitLifecycle)
+
+      assert {:error, {:forbidden, _}} = Users.delete_user(id, @scope)
+      assert {:ok, _} = Users.get_user(id, @scope)
+    end
+
+    test "crash rolls back the write" do
+      Application.put_env(:ex_scim, :lifecycle_adapter, ExScim.Test.CrashingCommitLifecycle)
+
+      capture_log(fn ->
+        assert {:error, :lifecycle_hook_error} =
+                 Users.create_user_from_scim(valid_scim_user_attrs(), @scope)
+      end)
+
+      assert {:ok, [], 0} = Users.list_users_scim(@scope)
+    end
+  end
+
   defp create_test_user(username \\ "john.doe") do
     scim_data = %{
       "schemas" => ["urn:ietf:params:scim:schemas:core:2.0:User"],
@@ -674,6 +757,20 @@ defmodule ExScim.Operations.UsersTest do
       case get_group(group_id) do
         {:ok, _} -> true
         _ -> false
+      end
+    end
+
+    @impl true
+    def transaction(fun) do
+      snapshot = Agent.get(__MODULE__, & &1)
+
+      case fun.() do
+        {:error, _} = error ->
+          Agent.update(__MODULE__, fn _ -> snapshot end)
+          error
+
+        result ->
+          result
       end
     end
   end

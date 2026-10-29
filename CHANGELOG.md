@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PATCH filtered paths (`emails[type eq "work"].value`, `members[value eq "..."]`)
 - PATCH `add` with an unmatched `eq` filter appending a new value
 - PATCH `remove` of the values listed in `value`
+- `Lifecycle.Adapter` `before_commit/4` callback in the storage transaction
+- `Storage.Adapter` optional `transaction/1` callback
 
 #### Fixed
 
@@ -21,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PATCH without `path` on structs and atom-keyed maps
 - PATCH `add` on a single-valued attribute wrapping the value in a list
 - PATCH crash on a nested path through a `nil` struct field
+
+### ex_scim_ecto
+
+#### Added
+
+- `StorageAdapter.transaction/1`
 
 ## [0.3.0] - 2026-10-06
 

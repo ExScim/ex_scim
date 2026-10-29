@@ -89,4 +89,18 @@ defmodule ExScim.Storage.Adapter do
 
   @doc "Returns `true` if a group with the given ID exists."
   @callback group_exists?(group_id(), scope()) :: boolean()
+
+  @doc """
+  Runs `fun` in a transaction and returns its result.
+
+  Commits when `fun` returns `:ok` or `{:ok, term()}`. Rolls back and returns
+  the error when it returns `{:error, term()}`, and rolls back and re-raises
+  when it raises.
+
+  Optional. Without it, `ExScim.Storage.transaction/1` calls `fun` directly.
+  """
+  @callback transaction(fun :: (-> result)) :: result
+            when result: :ok | {:ok, term()} | {:error, term()}
+
+  @optional_callbacks transaction: 1
 end
