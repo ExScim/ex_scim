@@ -461,6 +461,64 @@ defmodule ExScim.Operations.GroupsTest do
     }
   end
 
+  describe "before_commit" do
+    test "receives the stored group, or the ID on delete" do
+      Application.put_env(:ex_scim, :lifecycle_adapter, ExScim.Test.TestLifecycle)
+      {:ok, %{"id" => id}} = create_test_group()
+
+      replacement = %{
+        "schemas" => ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+        "displayName" => "Replaced"
+      }
+
+      patch_data = %{
+        "schemas" => ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+        "Operations" => [%{"op" => "replace", "path" => "displayName", "value" => "Patched"}]
+      }
+
+      {:ok, _} = Groups.replace_group_from_scim(id, replacement, @scope)
+      {:ok, _} = Groups.patch_group_from_scim(id, patch_data, @scope)
+      :ok = Groups.delete_group(id, @scope)
+
+      assert [
+               {:create, :group, %{id: ^id}, @scope},
+               {:replace, :group, %{id: ^id, display_name: "Replaced"}, @scope},
+               {:patch, :group, %{id: ^id, display_name: "Patched"}, @scope},
+               {:delete, :group, ^id, @scope}
+             ] = for({:before_commit, args} <- Process.get(:lifecycle_calls, []), do: args)
+    end
+
+    test "error rolls back create" do
+      Application.put_env(:ex_scim, :lifecycle_adapter, ExScim.Test.RejectingCommitLifecycle)
+
+      assert {:error, {:forbidden, _}} =
+               Groups.create_group_from_scim(valid_scim_group_attrs(), @scope)
+
+      assert {:ok, [], 0} = Groups.list_groups_scim(@scope)
+    end
+
+    test "error rolls back patch" do
+      {:ok, %{"id" => id}} = create_test_group()
+      Application.put_env(:ex_scim, :lifecycle_adapter, ExScim.Test.RejectingCommitLifecycle)
+
+      patch_data = %{
+        "schemas" => ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+        "Operations" => [%{"op" => "replace", "path" => "displayName", "value" => "Patched"}]
+      }
+
+      assert {:error, {:forbidden, _}} = Groups.patch_group_from_scim(id, patch_data, @scope)
+      assert {:ok, %{"displayName" => "Engineering"}} = Groups.get_group(id, @scope)
+    end
+
+    test "error rolls back delete" do
+      {:ok, %{"id" => id}} = create_test_group()
+      Application.put_env(:ex_scim, :lifecycle_adapter, ExScim.Test.RejectingCommitLifecycle)
+
+      assert {:error, {:forbidden, _}} = Groups.delete_group(id, @scope)
+      assert {:ok, _} = Groups.get_group(id, @scope)
+    end
+  end
+
   defp create_test_group(display_name \\ "Engineering") do
     scim_data = %{
       "schemas" => ["urn:ietf:params:scim:schemas:core:2.0:Group"],
@@ -647,6 +705,20 @@ defmodule ExScim.Operations.GroupsTest do
       case get_user(user_id) do
         {:ok, _} -> true
         _ -> false
+      end
+    end
+
+    @impl true
+    def transaction(fun) do
+      snapshot = Agent.get(__MODULE__, & &1)
+
+      case fun.() do
+        {:error, _} = error ->
+          Agent.update(__MODULE__, fn _ -> snapshot end)
+          error
+
+        result ->
+          result
       end
     end
   end

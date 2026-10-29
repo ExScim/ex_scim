@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-29
+
+### ex_scim
+
+#### Added
+
+- PATCH filtered paths (`emails[type eq "work"].value`, `members[value eq "..."]`)
+- PATCH `add` with an unmatched `eq` filter appending a new value
+- PATCH `remove` of the values listed in `value`
+- `Lifecycle.Adapter` `before_commit/4` callback in the storage transaction
+- `Storage.Adapter` optional `transaction/1` callback
+
+#### Fixed
+
+- PATCH attribute names on structs and atom-keyed maps (`displayName` to `:display_name`), case-insensitive and schema-qualified
+- PATCH without `path` on structs and atom-keyed maps
+- PATCH `add` on a single-valued attribute wrapping the value in a list
+- PATCH crash on a nested path through a `nil` struct field
+
+### ex_scim_ecto
+
+#### Added
+
+- `StorageAdapter.transaction/1`
+
+#### Changed
+
+- `ex_scim` dependency (`~> 0.3.0` to `~> 0.4.0`)
+
+### ex_scim_phoenix
+
+#### Changed
+
+- `ex_scim` dependency (`~> 0.3.0` to `~> 0.4.0`)
+
 ## [0.3.0] - 2026-10-06
 
 ### ex_scim

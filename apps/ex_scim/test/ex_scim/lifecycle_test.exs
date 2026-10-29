@@ -300,4 +300,40 @@ defmodule ExScim.LifecycleTest do
       assert result.lifecycle_enriched == true
     end
   end
+
+  describe "before_commit/4" do
+    test "returns :ok without an adapter" do
+      Application.delete_env(:ex_scim, :lifecycle_adapter)
+      assert :ok = Lifecycle.before_commit(:create, :user, %{id: "1"}, @caller)
+    end
+
+    test "returns :ok when the adapter doesn't implement it" do
+      Application.put_env(:ex_scim, :lifecycle_adapter, ExScim.Test.BehaviourOnlyLifecycle)
+      assert :ok = Lifecycle.before_commit(:create, :user, %{id: "1"}, @caller)
+    end
+
+    test "calls the adapter" do
+      Application.put_env(:ex_scim, :lifecycle_adapter, ExScim.Test.TestLifecycle)
+      assert :ok = Lifecycle.before_commit(:delete, :group, "id-1", @caller)
+
+      assert [{:before_commit, {:delete, :group, "id-1", @caller}}] =
+               Process.get(:lifecycle_calls, [])
+    end
+
+    test "returns the error from the adapter" do
+      Application.put_env(:ex_scim, :lifecycle_adapter, ExScim.Test.RejectingCommitLifecycle)
+
+      assert {:error, {:forbidden, _}} =
+               Lifecycle.before_commit(:create, :user, %{id: "1"}, @caller)
+    end
+
+    test "crash fails closed with {:error, :lifecycle_hook_error}" do
+      Application.put_env(:ex_scim, :lifecycle_adapter, ExScim.Test.CrashingCommitLifecycle)
+
+      assert capture_log(fn ->
+               assert {:error, :lifecycle_hook_error} =
+                        Lifecycle.before_commit(:create, :user, %{id: "1"}, @caller)
+             end) =~ "Lifecycle before hook crashed"
+    end
+  end
 end

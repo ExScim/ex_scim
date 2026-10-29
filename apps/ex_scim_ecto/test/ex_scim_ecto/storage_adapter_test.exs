@@ -250,4 +250,60 @@ defmodule ExScimEcto.StorageAdapterTest do
       end)
     end
   end
+
+  describe "transaction/1" do
+    test "commits the writes and returns the result" do
+      assert {:ok, %{id: "u1"}} =
+               StorageAdapter.transaction(fn ->
+                 {:ok, user} = StorageAdapter.create_user(user_attrs("u1", "alice"))
+                 TestRepo.insert!(%UserEmail{user_id: "u1", value: "alice@example.com"})
+                 {:ok, user}
+               end)
+
+      assert {:ok, _} = StorageAdapter.get_user("u1")
+      assert TestRepo.aggregate(UserEmail, :count) == 1
+    end
+
+    test "passes :ok through" do
+      assert :ok = StorageAdapter.transaction(fn -> :ok end)
+    end
+
+    test "error rolls back writes, including those made through the repo" do
+      assert {:error, :rejected} =
+               StorageAdapter.transaction(fn ->
+                 {:ok, _} = StorageAdapter.create_user(user_attrs("u1", "alice"))
+                 TestRepo.insert!(%UserEmail{user_id: "u1", value: "alice@example.com"})
+                 {:error, :rejected}
+               end)
+
+      assert {:error, :not_found} = StorageAdapter.get_user("u1")
+      assert TestRepo.aggregate(UserEmail, :count) == 0
+    end
+
+    test "error rolls back an update and a delete" do
+      {:ok, _} = StorageAdapter.create_user(user_attrs("u1", "alice"))
+      {:ok, _} = StorageAdapter.create_user(user_attrs("u2", "bob"))
+
+      assert {:error, :rejected} =
+               StorageAdapter.transaction(fn ->
+                 {:ok, _} = StorageAdapter.update_user("u1", %{display_name: "changed"})
+                 :ok = StorageAdapter.delete_user("u2")
+                 {:error, :rejected}
+               end)
+
+      assert {:ok, %{display_name: "alice"}} = StorageAdapter.get_user("u1")
+      assert {:ok, _} = StorageAdapter.get_user("u2")
+    end
+
+    test "raise rolls back and re-raises" do
+      assert_raise RuntimeError, "boom", fn ->
+        StorageAdapter.transaction(fn ->
+          {:ok, _} = StorageAdapter.create_user(user_attrs("u1", "alice"))
+          raise "boom"
+        end)
+      end
+
+      assert {:error, :not_found} = StorageAdapter.get_user("u1")
+    end
+  end
 end

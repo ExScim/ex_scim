@@ -7,11 +7,12 @@ defmodule ExScim.Lifecycle do
 
   ## Error handling
 
-  - **Before hooks** fail closed: crashes are rescued and return `{:error, :lifecycle_hook_error}`,
-    rejecting the operation.
-  - **After hooks** fail open: crashes are rescued and logged, the already-completed
-    operation is returned as successful.
-  - **on_error** crashes are silently rescued and logged.
+  Hook crashes are rescued and logged.
+
+  - Before hooks and `before_commit` fail closed. The operation returns
+    `{:error, :lifecycle_hook_error}`, and `before_commit` also rolls back the
+    storage write.
+  - After hooks and `on_error` fail open. The operation result is unchanged.
   """
 
   require Logger
@@ -63,6 +64,24 @@ defmodule ExScim.Lifecycle do
     case adapter() do
       nil -> :ok
       mod -> safe_before_action(fn -> mod.before_get(resource_type, resource_id, caller) end)
+    end
+  end
+
+  # Before-commit hook: fail closed
+
+  @doc """
+  Fires inside the storage transaction after a write. Returns `:ok` to commit or
+  `{:error, reason}` to roll back.
+
+  Returns `:ok` when the adapter doesn't implement `before_commit/4`.
+  """
+  def before_commit(operation, resource_type, resource, caller) do
+    mod = adapter()
+
+    if mod && Code.ensure_loaded?(mod) && function_exported?(mod, :before_commit, 4) do
+      safe_before_action(fn -> mod.before_commit(operation, resource_type, resource, caller) end)
+    else
+      :ok
     end
   end
 
@@ -135,7 +154,7 @@ defmodule ExScim.Lifecycle do
     Application.get_env(:ex_scim, :lifecycle_adapter)
   end
 
-  # Before hooks fail closed: crash → {:error, :lifecycle_hook_error}
+  # Before hooks fail closed, crash then return {:error, :lifecycle_hook_error}
   defp safe_before(fun) do
     fun.()
   rescue
@@ -159,7 +178,7 @@ defmodule ExScim.Lifecycle do
       {:error, :lifecycle_hook_error}
   end
 
-  # After hooks fail open: crash → log and return :ok
+  # After hooks fail open, crash then log and return :ok
   defp safe_after(fun) do
     fun.()
     :ok

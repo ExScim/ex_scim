@@ -123,6 +123,24 @@ defmodule ExScim.Storage do
   end
 
   @doc """
+  Runs `fun` in a transaction of the configured adapter.
+
+  Calls `fun` directly when the adapter doesn't implement `transaction/1`, as
+  is the case for `ExScim.Storage.EtsStorage`. Writes are then not rolled back
+  on error.
+  """
+  @impl true
+  def transaction(fun) when is_function(fun, 0) do
+    adapter = adapter()
+
+    if Code.ensure_loaded?(adapter) and function_exported?(adapter, :transaction, 1) do
+      adapter.transaction(fun)
+    else
+      fun.()
+    end
+  end
+
+  @doc """
   Returns the configured storage adapter module.
 
   ## Examples

@@ -68,6 +68,12 @@ defmodule ExScim.Test.TestLifecycle do
   end
 
   @impl true
+  def before_commit(operation, resource_type, resource, caller) do
+    record_call(:before_commit, {operation, resource_type, resource, caller})
+    :ok
+  end
+
+  @impl true
   def on_error(operation, resource_type, error, caller) do
     record_call(:on_error, {operation, resource_type, error, caller})
     :ok
@@ -147,4 +153,29 @@ defmodule ExScim.Test.ModifyingLifecycle do
   def before_patch(_resource_type, _resource_id, resource_data, _caller) do
     {:ok, Map.put(resource_data, :lifecycle_enriched, true)}
   end
+end
+
+defmodule ExScim.Test.RejectingCommitLifecycle do
+  @moduledoc "Lifecycle adapter that rejects every write in `before_commit/4`."
+  use ExScim.Lifecycle.Adapter
+
+  @impl true
+  def before_commit(_operation, _resource_type, _resource, _caller) do
+    {:error, {:forbidden, "Rejected by before_commit"}}
+  end
+end
+
+defmodule ExScim.Test.CrashingCommitLifecycle do
+  @moduledoc "Lifecycle adapter that crashes in `before_commit/4`."
+  use ExScim.Lifecycle.Adapter
+
+  @impl true
+  def before_commit(_operation, _resource_type, _resource, _caller) do
+    raise "before_commit crashed!"
+  end
+end
+
+defmodule ExScim.Test.BehaviourOnlyLifecycle do
+  @moduledoc "Lifecycle adapter that declares the behaviour without `use` and implements no callbacks."
+  @behaviour ExScim.Lifecycle.Adapter
 end
