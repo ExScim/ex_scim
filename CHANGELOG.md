@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-29
+
 ### ex_scim
 
 #### Added
@@ -29,6 +31,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Added
 
 - `StorageAdapter.transaction/1`
+
+#### Changed
+
+- `ex_scim` dependency (`~> 0.3.0` to `~> 0.4.0`)
+
+### ex_scim_phoenix
+
+#### Changed
+
+- `ex_scim` dependency (`~> 0.3.0` to `~> 0.4.0`)
 
 ## [0.3.0] - 2026-10-06
 
