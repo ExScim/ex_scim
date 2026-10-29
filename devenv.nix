@@ -31,5 +31,20 @@ in
 
   env.TAILWINDCSS_PATH = "${pkgs.lib.getExe pkgs.tailwindcss_4}";
 
+  /*
+    services.postgres = {
+      enable = true;
+      listen_addresses = "127.0.0.1";
+      port = 5433;
+      initialDatabases = [
+        {
+          name = "ex_scim_ecto_test";
+          user = "postgres";
+          pass = "postgres";
+        }
+      ];
+    };
+  */
+
   git-hooks.hooks.mix-format.enable = true;
 }
