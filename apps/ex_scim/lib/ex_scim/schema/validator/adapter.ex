@@ -22,11 +22,7 @@ defmodule ExScim.Schema.Validator.Adapter do
   @callback validate_scim_schema(scim_data()) ::
               {:ok, scim_data()} | {:error, validation_errors()}
 
-  @doc """
-  Validates a partial SCIM payload.
-
-  ExScim no longer calls it. It will be removed in 0.6.0.
-  """
+  @doc "Validates a partial SCIM payload."
   @doc deprecated: "ExScim no longer calls it; it will be removed in 0.6.0"
   @callback validate_scim_partial(scim_data(), operation_type :: atom()) ::
               {:ok, scim_data()} | {:error, validation_errors()}

@@ -28,6 +28,8 @@ defmodule ExScim.Users.Patcher do
   of operations. Each operation must have an `"op"` field (`"add"`, `"replace"`,
   or `"remove"`) and optionally `"path"` and `"value"` fields.
 
+  Passing a struct or an atom-keyed map is deprecated and logs a warning.
+
   Returns `{:ok, updated_user}` or `{:error, {:invalid_patch, scim_type, message}}`.
   """
   @spec patch(map() | struct(), map()) ::

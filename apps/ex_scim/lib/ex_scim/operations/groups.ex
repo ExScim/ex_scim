@@ -109,8 +109,9 @@ defmodule ExScim.Operations.Groups do
   on the mapper's SCIM representation of the stored group, and the result is
   mapped back and stored like a PUT.
 
-  Unknown attributes return `{:error, {:invalid_patch, :invalid_path, message}}`,
-  writes to read-only or immutable attributes `:mutability` instead.
+  Unknown attributes return `{:error, {:invalid_patch, :invalid_path, message}}`.
+  Changing a read-only or immutable attribute returns `:mutability`. Values
+  equal to the current ones are ignored.
   """
   def patch_group_from_scim(group_id, scim_data, scope) do
     with {:ok, patch_ops} <- PatchValidator.validate(scim_data, "Group"),
