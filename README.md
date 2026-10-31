@@ -22,10 +22,10 @@ storage, authentication, and resource mapping. Built on
 Add the packages you need to `mix.exs`:
 
 ```elixir
-{:ex_scim, "~> 0.4"},
-{:ex_scim_ecto, "~> 0.4"},        # optional: Ecto storage
-{:ex_scim_phoenix, "~> 0.4"},     # optional: Phoenix endpoints
-{:ex_scim_client, "~> 0.4"}       # optional: HTTP client
+{:ex_scim, "~> 0.5"},
+{:ex_scim_ecto, "~> 0.5"},        # optional: Ecto storage
+{:ex_scim_phoenix, "~> 0.5"},     # optional: Phoenix endpoints
+{:ex_scim_client, "~> 0.5"}       # optional: HTTP client
 ```
 
 ## Quick Start
