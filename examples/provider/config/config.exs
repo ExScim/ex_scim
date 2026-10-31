@@ -68,6 +68,7 @@ config :ex_scim,
   group_resource_mapper: Provider.Scim.GroupMapper,
   scim_validator: ExScim.Schema.Validator.DefaultValidator,
   scim_schema_repository: ExScim.Schema.Repository.DefaultRepository,
+  schema_modules: [Provider.Scim.Schemas.User, Provider.Scim.Schemas.Group],
   lifecycle_adapter: Provider.Scim.Lifecycle,
   storage_strategy: ExScimEcto.StorageAdapter,
   storage_repo: Provider.Repo,
@@ -97,12 +98,7 @@ config :ex_scim,
       endpoint: "/Users",
       description: "User Account",
       schema: "urn:ietf:params:scim:schemas:core:2.0:User",
-      schema_extensions: [
-        %{
-          schema: "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User",
-          required: false
-        }
-      ]
+      schema_extensions: []
     },
     %{
       id: "Group",
