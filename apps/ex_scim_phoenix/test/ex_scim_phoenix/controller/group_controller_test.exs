@@ -222,7 +222,7 @@ defmodule ExScimPhoenix.Controller.GroupControllerTest do
 
       patch = %{
         "schemas" => [@patch_schema],
-        "Operations" => [%{"op" => "replace", "path" => "display_name", "value" => "Patched"}]
+        "Operations" => [%{"op" => "replace", "path" => "displayName", "value" => "Patched"}]
       }
 
       conn = patch(auth_conn(), "/Groups/#{created["id"]}", patch)
@@ -232,7 +232,7 @@ defmodule ExScimPhoenix.Controller.GroupControllerTest do
     test "returns 404 for missing group" do
       patch = %{
         "schemas" => [@patch_schema],
-        "Operations" => [%{"op" => "replace", "path" => "display_name", "value" => "X"}]
+        "Operations" => [%{"op" => "replace", "path" => "displayName", "value" => "X"}]
       }
 
       conn = patch(auth_conn(), "/Groups/nonexistent", patch)
@@ -244,7 +244,7 @@ defmodule ExScimPhoenix.Controller.GroupControllerTest do
 
       patch = %{
         "schemas" => [@patch_schema],
-        "Operations" => [%{"op" => "frobnicate", "path" => "display_name", "value" => "X"}]
+        "Operations" => [%{"op" => "frobnicate", "path" => "displayName", "value" => "X"}]
       }
 
       conn = patch(auth_conn(), "/Groups/#{created["id"]}", patch)

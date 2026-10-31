@@ -332,7 +332,7 @@ defmodule ExScim.Operations.GroupsTest do
       patch_data = %{
         "schemas" => ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
         "Operations" => [
-          %{"op" => "replace", "path" => "display_name", "value" => "Patched Name"}
+          %{"op" => "replace", "path" => "displayName", "value" => "Patched Name"}
         ]
       }
 
@@ -361,7 +361,7 @@ defmodule ExScim.Operations.GroupsTest do
       patch_data = %{
         "schemas" => ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
         "Operations" => [
-          %{"op" => "replace", "path" => "display_name", "value" => "Patched Name"}
+          %{"op" => "replace", "path" => "displayName", "value" => "Patched Name"}
         ]
       }
 
@@ -392,7 +392,7 @@ defmodule ExScim.Operations.GroupsTest do
       patch_data = %{
         "schemas" => ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
         "Operations" => [
-          %{"op" => "replace", "path" => "display_name", "value" => "Patched Name"}
+          %{"op" => "replace", "path" => "displayName", "value" => "Patched Name"}
         ]
       }
 
@@ -402,6 +402,83 @@ defmodule ExScim.Operations.GroupsTest do
       hook_names = Enum.map(calls, &elem(&1, 0))
       assert :before_patch in hook_names
       assert :after_patch in hook_names
+    end
+  end
+
+  describe "patch_group_from_scim/3 with a mapper that renames fields" do
+    alias ExScim.Operations.GroupsTest.TestStorage
+
+    defmodule GroupMapper do
+      @moduledoc false
+      use ExScim.Groups.Mapper.Adapter
+
+      @impl true
+      def from_scim(scim_data, _caller), do: {:ok, %{title: scim_data["displayName"]}}
+
+      @impl true
+      def to_scim(group, _caller, _opts \\ []) do
+        {:ok,
+         %{
+           "schemas" => ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+           "id" => group[:id],
+           "displayName" => group[:title]
+         }}
+      end
+    end
+
+    setup do
+      previous = Application.get_env(:ex_scim, :group_resource_mapper)
+      Application.put_env(:ex_scim, :group_resource_mapper, GroupMapper)
+
+      on_exit(fn ->
+        if previous,
+          do: Application.put_env(:ex_scim, :group_resource_mapper, previous),
+          else: Application.delete_env(:ex_scim, :group_resource_mapper)
+      end)
+
+      {:ok, _} = TestStorage.create_group(%{id: "group-1", title: "Engineering"})
+      %{id: "group-1"}
+    end
+
+    test "applies displayName to the renamed field", %{id: id} do
+      ops = [%{"op" => "replace", "path" => "displayName", "value" => "Platform"}]
+
+      assert {:ok, patched} = Groups.patch_group_from_scim(id, patch(ops), @scope)
+      assert patched["displayName"] == "Platform"
+      assert {:ok, %{title: "Platform"}} = TestStorage.get_group(id)
+    end
+
+    test "accepts the current id in a value without a path", %{id: id} do
+      ops = [%{"op" => "replace", "value" => %{"id" => id, "displayName" => "Platform"}}]
+
+      assert {:ok, %{"displayName" => "Platform"}} =
+               Groups.patch_group_from_scim(id, patch(ops), @scope)
+
+      ops = [%{"op" => "replace", "value" => %{"id" => "other", "displayName" => "Platform"}}]
+
+      assert {:error, {:invalid_patch, :mutability, _}} =
+               Groups.patch_group_from_scim(id, patch(ops), @scope)
+    end
+
+    test "rejects undeclared attributes", %{id: id} do
+      ops = [%{"op" => "replace", "path" => "owner", "value" => "alice"}]
+
+      assert {:error, {:invalid_patch, :invalid_path, _}} =
+               Groups.patch_group_from_scim(id, patch(ops), @scope)
+    end
+
+    test "rejects replacing an immutable sub-attribute", %{id: id} do
+      ops = [%{"op" => "replace", "path" => ~s(members[value eq "u1"].value), "value" => "u2"}]
+
+      assert {:error, {:invalid_patch, :mutability, _}} =
+               Groups.patch_group_from_scim(id, patch(ops), @scope)
+    end
+
+    defp patch(operations) do
+      %{
+        "schemas" => ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+        "Operations" => operations
+      }
     end
   end
 

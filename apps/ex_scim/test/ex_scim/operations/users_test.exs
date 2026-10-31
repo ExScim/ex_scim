@@ -377,7 +377,7 @@ defmodule ExScim.Operations.UsersTest do
       patch_data = %{
         "schemas" => ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
         "Operations" => [
-          %{"op" => "replace", "path" => "display_name", "value" => "Patched Name"}
+          %{"op" => "replace", "path" => "displayName", "value" => "Patched Name"}
         ]
       }
 
@@ -406,7 +406,7 @@ defmodule ExScim.Operations.UsersTest do
       patch_data = %{
         "schemas" => ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
         "Operations" => [
-          %{"op" => "replace", "path" => "user_name", "value" => "patched.user"}
+          %{"op" => "replace", "path" => "userName", "value" => "patched.user"}
         ]
       }
 
@@ -422,7 +422,7 @@ defmodule ExScim.Operations.UsersTest do
       patch_data = %{
         "schemas" => ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
         "Operations" => [
-          %{"op" => "replace", "path" => "user_name", "value" => "patched.user"}
+          %{"op" => "replace", "path" => "userName", "value" => "patched.user"}
         ]
       }
 
@@ -432,6 +432,116 @@ defmodule ExScim.Operations.UsersTest do
       hook_names = Enum.map(calls, &elem(&1, 0))
       assert :before_patch in hook_names
       assert :after_patch in hook_names
+    end
+  end
+
+  describe "patch_user_from_scim/3 with a mapper that renames fields" do
+    alias ExScim.Operations.UsersTest.TestStorage
+
+    defmodule UserMapper do
+      @moduledoc false
+      use ExScim.Users.Mapper.Adapter
+
+      @impl true
+      def from_scim(scim_data, _caller) do
+        {:ok,
+         %{
+           user_name: scim_data["userName"],
+           given_name: get_in(scim_data, ["name", "givenName"]),
+           family_name: get_in(scim_data, ["name", "familyName"]),
+           formatted_name: scim_data["displayName"],
+           status: if(Map.get(scim_data, "active", true), do: "active", else: "inactive")
+         }}
+      end
+
+      @impl true
+      def to_scim(user, _caller, _opts \\ []) do
+        {:ok,
+         %{
+           "schemas" => ["urn:ietf:params:scim:schemas:core:2.0:User"],
+           "id" => user[:id],
+           "userName" => user[:user_name],
+           "displayName" => user[:formatted_name],
+           "active" => user[:status] == "active",
+           "name" => %{"givenName" => user[:given_name], "familyName" => user[:family_name]}
+         }}
+      end
+    end
+
+    setup do
+      previous = Application.get_env(:ex_scim, :user_resource_mapper)
+      Application.put_env(:ex_scim, :user_resource_mapper, UserMapper)
+
+      on_exit(fn ->
+        if previous,
+          do: Application.put_env(:ex_scim, :user_resource_mapper, previous),
+          else: Application.delete_env(:ex_scim, :user_resource_mapper)
+      end)
+
+      user = %{
+        id: "user-1",
+        user_name: "jdoe",
+        given_name: "John",
+        family_name: "Doe",
+        status: "active"
+      }
+
+      {:ok, _} = TestStorage.create_user(user)
+      %{id: user.id}
+    end
+
+    for {label, operation} <- [
+          {"a sub-attribute path",
+           %{"op" => "replace", "path" => "name.familyName", "value" => "Smith"}},
+          {"a complex attribute path",
+           %{"op" => "replace", "path" => "name", "value" => %{"familyName" => "Smith"}}},
+          {"no path", %{"op" => "replace", "value" => %{"name" => %{"familyName" => "Smith"}}}}
+        ] do
+      test "applies name changes given #{label}", %{id: id} do
+        assert {:ok, patched} =
+                 Users.patch_user_from_scim(id, patch(unquote(Macro.escape(operation))), @scope)
+
+        assert patched["name"] == %{"givenName" => "John", "familyName" => "Smith"}
+        assert {:ok, %{family_name: "Smith", given_name: "John"}} = TestStorage.get_user(id)
+      end
+    end
+
+    test "applies active and displayName to their renamed fields", %{id: id} do
+      ops = [
+        %{"op" => "replace", "path" => "active", "value" => false},
+        %{"op" => "add", "path" => "DisplayName", "value" => "Johnny"}
+      ]
+
+      assert {:ok, patched} = Users.patch_user_from_scim(id, patch(ops), @scope)
+      assert patched["active"] == false
+      assert patched["displayName"] == "Johnny"
+      assert {:ok, %{status: "inactive", formatted_name: "Johnny"}} = TestStorage.get_user(id)
+    end
+
+    test "rejects undeclared attributes before loading the user", %{id: id} do
+      ops = %{"op" => "replace", "path" => "favoriteColor", "value" => "green"}
+
+      assert {:error, {:invalid_patch, :invalid_path, _}} =
+               Users.patch_user_from_scim("unknown", patch(ops), @scope)
+
+      assert {:error, {:invalid_patch, :invalid_path, _}} =
+               Users.patch_user_from_scim(id, patch(ops), @scope)
+    end
+
+    test "rejects read-only attributes", %{id: id} do
+      ops = %{"op" => "replace", "path" => "id", "value" => "other"}
+
+      assert {:error, {:invalid_patch, :mutability, _}} =
+               Users.patch_user_from_scim(id, patch(ops), @scope)
+
+      assert {:ok, %{id: "user-1"}} = TestStorage.get_user(id)
+    end
+
+    defp patch(operations) do
+      %{
+        "schemas" => ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
+        "Operations" => List.wrap(operations)
+      }
     end
   end
 

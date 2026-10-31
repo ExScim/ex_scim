@@ -129,7 +129,7 @@ defmodule ExScimPhoenix.Controller.MeControllerTest do
 
       patch = %{
         "schemas" => [@patch_schema],
-        "Operations" => [%{"op" => "replace", "path" => "display_name", "value" => "Patched"}]
+        "Operations" => [%{"op" => "replace", "path" => "displayName", "value" => "Patched"}]
       }
 
       conn = patch(me_conn(), "/Me", patch)
@@ -141,7 +141,7 @@ defmodule ExScimPhoenix.Controller.MeControllerTest do
 
       patch = %{
         "schemas" => [@patch_schema],
-        "Operations" => [%{"op" => "frobnicate", "path" => "display_name", "value" => "X"}]
+        "Operations" => [%{"op" => "frobnicate", "path" => "displayName", "value" => "X"}]
       }
 
       conn = patch(me_conn(), "/Me", patch)
