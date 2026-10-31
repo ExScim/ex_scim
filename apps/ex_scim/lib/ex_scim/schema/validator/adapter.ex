@@ -2,13 +2,9 @@ defmodule ExScim.Schema.Validator.Adapter do
   @moduledoc """
   Behaviour for SCIM schema validators.
 
-  Implementations validate incoming SCIM payloads against schema definitions.
-  Two validation modes are supported:
-
-  - **Full validation** (`validate_scim_schema/1`) - for POST and PUT operations
-    where a complete resource representation is required.
-  - **Partial validation** (`validate_scim_partial/2`) - for PATCH operations
-    where only a subset of attributes may be present.
+  Implementations validate complete SCIM resource payloads for POST and PUT
+  with `validate_scim_schema/1`. PATCH requests are validated against the
+  resource type's schemas by ExScim itself.
   """
 
   @typedoc "A SCIM resource payload as a JSON-decoded map."
@@ -26,12 +22,10 @@ defmodule ExScim.Schema.Validator.Adapter do
   @callback validate_scim_schema(scim_data()) ::
               {:ok, scim_data()} | {:error, validation_errors()}
 
-  @doc """
-  Validates a partial SCIM payload (PATCH).
-
-  The `operation_type` indicates the kind of partial update (e.g. `:patch`).
-  Returns `{:ok, validated_data}` or `{:error, validation_errors}`.
-  """
+  @doc "Validates a partial SCIM payload."
+  @doc deprecated: "ExScim no longer calls it; it will be removed in 0.6.0"
   @callback validate_scim_partial(scim_data(), operation_type :: atom()) ::
               {:ok, scim_data()} | {:error, validation_errors()}
+
+  @optional_callbacks validate_scim_partial: 2
 end

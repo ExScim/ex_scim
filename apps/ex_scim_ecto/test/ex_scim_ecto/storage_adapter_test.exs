@@ -53,6 +53,16 @@ defmodule ExScimEcto.StorageAdapterTest do
       assert updated.user_name == "alice"
     end
 
+    test "update with a struct clears nil fields" do
+      {:ok, _} = StorageAdapter.create_user(user_attrs("u1", "alice"))
+
+      user = %User{id: "u1", user_name: "alice", display_name: nil, active: true}
+
+      assert {:ok, updated} = StorageAdapter.update_user("u1", user)
+      assert updated.display_name == nil
+      assert {:ok, %{display_name: nil}} = StorageAdapter.get_user("u1")
+    end
+
     test "update returns :not_found for a missing user" do
       assert {:error, :not_found} = StorageAdapter.update_user("nope", %{display_name: "X"})
     end

@@ -1,7 +1,7 @@
 defmodule ExScim.MixProject do
   use Mix.Project
 
-  @version "0.4.0"
+  @version "0.5.0"
   @source_url "https://github.com/ExScim/ex_scim"
 
   def project do

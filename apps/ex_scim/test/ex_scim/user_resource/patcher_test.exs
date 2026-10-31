@@ -1,7 +1,10 @@
 defmodule ExScim.Users.PatcherTest do
   use ExUnit.Case, async: true
 
+  @moduletag :capture_log
+
   import ExScim.TestFixtures
+  import ExUnit.CaptureLog
   import ExScim.SCIMComplianceHelpers
 
   alias ExScim.Users.Patcher
@@ -243,22 +246,82 @@ defmodule ExScim.Users.PatcherTest do
       end
     end
 
-    test "returns noTarget for a path through missing attributes" do
+    test "rejects paths deeper than a sub-attribute" do
+      patch_ops = %{
+        "Operations" => [%{"op" => "replace", "path" => "name.familyName.x", "value" => "test"}]
+      }
+
+      assert {:error, {:invalid_patch, :invalid_path, _}} = Patcher.patch(%{}, patch_ops)
+    end
+
+    test "does not match attribute names with underscores" do
+      patch_ops = %{"Operations" => [%{"op" => "replace", "path" => "user_name", "value" => "x"}]}
+
+      assert {:ok, %{"userName" => "jdoe", "user_name" => "x"}} =
+               Patcher.patch(%{"userName" => "jdoe"}, patch_ops)
+    end
+
+    test "writes extension attributes into the object keyed by the schema URN" do
+      urn = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+
+      patch_ops = %{
+        "Operations" => [
+          %{"op" => "add", "path" => "#{urn}:employeeNumber", "value" => "42"},
+          %{"op" => "replace", "path" => "#{urn}:manager.value", "value" => "boss"}
+        ]
+      }
+
+      user = %{"schemas" => ["urn:ietf:params:scim:schemas:core:2.0:User"], "userName" => "jdoe"}
+
+      assert {:ok, patched} = Patcher.patch(user, patch_ops)
+      assert patched[urn] == %{"employeeNumber" => "42", "manager" => %{"value" => "boss"}}
+      assert patched["schemas"] == ["urn:ietf:params:scim:schemas:core:2.0:User", urn]
+      refute Map.has_key?(patched, "employeeNumber")
+    end
+
+    test "treats the core schema URN as a top-level path" do
       patch_ops = %{
         "Operations" => [
           %{
             "op" => "replace",
-            "path" => "very.deep.nested.path.that.does.not.exist",
-            "value" => "test"
+            "path" => "urn:ietf:params:scim:schemas:core:2.0:User:name.familyName",
+            "value" => "Smith"
           }
         ]
       }
 
-      assert {:error, {:invalid_patch, :no_target, _}} = Patcher.patch(%{}, patch_ops)
+      assert {:ok, %{"name" => %{"familyName" => "Smith"}}} = Patcher.patch(%{}, patch_ops)
+    end
+
+    test "replace on a sub-attribute creates its missing parent" do
+      patch_ops = %{
+        "Operations" => [%{"op" => "replace", "path" => "name.familyName", "value" => "Smith"}]
+      }
+
+      assert {:ok, %{"userName" => "jdoe", "name" => %{"familyName" => "Smith"}}} =
+               Patcher.patch(%{"userName" => "jdoe"}, patch_ops)
+    end
+
+    test "replace on a complex attribute keeps sub-attributes it doesn't specify" do
+      user = %{"name" => %{"givenName" => "John", "familyName" => "Doe"}}
+
+      for op <- [
+            %{"op" => "replace", "path" => "name", "value" => %{"familyName" => "Smith"}},
+            %{"op" => "replace", "value" => %{"name" => %{"familyName" => "Smith"}}}
+          ] do
+        assert {:ok, %{"name" => %{"givenName" => "John", "familyName" => "Smith"}}} =
+                 Patcher.patch(user, %{"Operations" => [op]})
+      end
     end
   end
 
   describe "patch/2 with structs" do
+    test "logs a deprecation warning" do
+      ops = %{"Operations" => [%{"op" => "replace", "path" => "userName", "value" => "jd"}]}
+
+      assert capture_log(fn -> Patcher.patch(%{user_name: "jdoe"}, ops) end) =~ "deprecated"
+    end
+
     setup do
       # Create a domain user struct for testing
       domain_user = %ExScim.Users.User{
@@ -738,31 +801,6 @@ defmodule ExScim.Users.PatcherTest do
       assert large_result["userName"] == "updated"
       # Other complex fields should be preserved
       assert large_result["emails"] == large_user["emails"]
-    end
-
-    test "handles nested operations efficiently" do
-      user_with_deep_nesting = %{
-        "level1" => %{
-          "level2" => %{
-            "level3" => %{
-              "target" => "original_value"
-            }
-          }
-        }
-      }
-
-      patch_ops = %{
-        "Operations" => [
-          %{
-            "op" => "replace",
-            "path" => "level1.level2.level3.target",
-            "value" => "new_value"
-          }
-        ]
-      }
-
-      assert {:ok, result} = Patcher.patch(user_with_deep_nesting, patch_ops)
-      assert get_in(result, ["level1", "level2", "level3", "target"]) == "new_value"
     end
   end
 end

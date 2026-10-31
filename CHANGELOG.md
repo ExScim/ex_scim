@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-31
+
+### ex_scim
+
+#### Breaking Changes
+
+- PATCH validated against the resource type's schemas (`invalidPath`, `mutability`)
+- PATCH validated before the resource is loaded (`400` before `404`)
+- PATCH applied to the mapper's SCIM representation and stored like PUT
+- `Users.Patcher` and `Groups.Patcher` `invalidPath` for paths deeper than `attribute.subAttribute`
+- `Users.Patcher` and `Groups.Patcher` underscore matching on SCIM maps (`user_name` for `userName`) removed
+
+#### Added
+
+- PATCH `add` on an `immutable` attribute without a value
+- PATCH on an extension attribute listing the extension URN in `schemas`
+- PATCH read-only and immutable values equal to the current ones ignored
+
+#### Deprecated
+
+- `Schema.Validator.validate_scim_partial/2` and the `validate_scim_partial/2` adapter callback
+- `Users.Patcher.patch/2` and `Groups.Patcher.patch/2` on structs and atom-keyed maps
+
+#### Fixed
+
+- PATCH on attributes the mapper renames (`name.familyName`, `active`, `displayName`) returning 200 without changes
+- PATCH `replace` on a complex attribute dropping unspecified sub-attributes
+- PATCH on a sub-attribute of a missing complex attribute returning `noTarget`
+- PATCH on extension attributes writing to the top level instead of the extension object
+- PATCH on `/Groups` validated against the User schema
+
+### ex_scim_ecto
+
+#### Breaking Changes
+
+- `StorageAdapter.update_user/3` and `update_group/3` passing nil fields of a struct to the changeset
+
+#### Changed
+
+- `ex_scim` dependency (`~> 0.4.0` to `~> 0.5.0`)
+
+#### Fixed
+
+- PATCH `remove` not clearing the column
+
+### ex_scim_phoenix
+
+#### Changed
+
+- `ex_scim` dependency (`~> 0.4.0` to `~> 0.5.0`)
+
 ## [0.4.0] - 2026-10-29
 
 ### ex_scim

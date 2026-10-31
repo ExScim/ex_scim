@@ -12,6 +12,7 @@ defmodule ExScim.Operations.Users do
   alias ExScim.Resources.IdGenerator
   alias ExScim.Resources.Metadata
   alias ExScim.Resources.Resource
+  alias ExScim.Schema.PatchValidator
   alias ExScim.Schema.Validator
   alias ExScim.Storage
   alias ExScim.Users.Mapper
@@ -101,17 +102,27 @@ defmodule ExScim.Operations.Users do
   end
 
   @doc """
-  Applies a SCIM PATCH operation to an existing user.
+  Applies a SCIM PATCH to an existing user.
 
-  Fetches the user, validates the patch payload, applies patch operations,
-  runs lifecycle hooks, and stores.
-  Returns `{:ok, scim_user}` or `{:error, reason}`.
+  Paths are checked against the User schemas first. The operations then run
+  on the mapper's SCIM representation of the stored user, and the result is
+  mapped back and stored like a PUT.
+
+  Unknown attributes return `{:error, {:invalid_patch, :invalid_path, message}}`.
+  Changing a read-only or immutable attribute returns `:mutability`. Values
+  equal to the current ones are ignored.
   """
   def patch_user_from_scim(user_id, scim_data, scope) do
-    with {:ok, domain_user} <- Storage.get_user(user_id, scope),
-         {:ok, schema_validated_data} <- Validator.validate_scim_partial(scim_data, :patch),
-         {:ok, patched_user} <- Patcher.patch(domain_user, schema_validated_data),
-         user_with_meta <- Metadata.update_metadata(patched_user, "User"),
+    with {:ok, patch_ops} <- PatchValidator.validate(scim_data, "User"),
+         {:ok, existing_user} <- Storage.get_user(user_id, scope),
+         {:ok, current} <- Mapper.to_scim(existing_user, scope),
+         {:ok, patch_ops} <- PatchValidator.validate_changes(patch_ops, current, "User"),
+         {:ok, patched} <- Patcher.patch(current, patch_ops),
+         {:ok, user_struct} <- Mapper.from_scim(patched, scope),
+         user_with_id <- Resource.set_id(user_struct, user_id),
+         user_with_created <-
+           Map.put(user_with_id, :meta_created, Map.get(existing_user, :meta_created)),
+         user_with_meta <- Metadata.update_metadata(user_with_created, "User"),
          {:ok, hooked_data} <- Lifecycle.before_patch(:user, user_id, user_with_meta, scope),
          {:ok, stored_user} <-
            store(:patch, scope, fn -> Storage.update_user(user_id, hooked_data, scope) end),

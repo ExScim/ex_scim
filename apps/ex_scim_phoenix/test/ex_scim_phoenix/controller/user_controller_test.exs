@@ -238,7 +238,7 @@ defmodule ExScimPhoenix.Controller.UserControllerTest do
 
       patch = %{
         "schemas" => [@patch_schema],
-        "Operations" => [%{"op" => "replace", "path" => "display_name", "value" => "Patched"}]
+        "Operations" => [%{"op" => "replace", "path" => "displayName", "value" => "Patched"}]
       }
 
       conn = patch(auth_conn(), "/Users/#{created["id"]}", patch)
@@ -250,7 +250,7 @@ defmodule ExScimPhoenix.Controller.UserControllerTest do
     test "returns 404 for missing user" do
       patch = %{
         "schemas" => [@patch_schema],
-        "Operations" => [%{"op" => "replace", "path" => "display_name", "value" => "X"}]
+        "Operations" => [%{"op" => "replace", "path" => "displayName", "value" => "X"}]
       }
 
       conn = patch(auth_conn(), "/Users/nonexistent", patch)
@@ -262,7 +262,7 @@ defmodule ExScimPhoenix.Controller.UserControllerTest do
 
       patch = %{
         "schemas" => [@patch_schema],
-        "Operations" => [%{"op" => "frobnicate", "path" => "display_name", "value" => "X"}]
+        "Operations" => [%{"op" => "frobnicate", "path" => "displayName", "value" => "X"}]
       }
 
       conn = patch(auth_conn(), "/Users/#{created["id"]}", patch)

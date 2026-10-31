@@ -2,6 +2,7 @@ defmodule ExScim.UsersSchemaValidationTest do
   use ExUnit.Case, async: true
 
   alias ExScim.Schema.Validator
+  alias ExScim.Schema.Validator.DefaultValidator
 
   import ExScim.TestFixtures
 
@@ -147,7 +148,7 @@ defmodule ExScim.UsersSchemaValidationTest do
         "active" => false
       }
 
-      assert {:ok, validated_data} = Validator.validate_scim_partial(scim_data, :patch)
+      assert {:ok, validated_data} = DefaultValidator.validate_scim_partial(scim_data, :patch)
       assert validated_data == scim_data
     end
 
@@ -157,7 +158,7 @@ defmodule ExScim.UsersSchemaValidationTest do
         "active" => "false"
       }
 
-      assert {:error, errors} = Validator.validate_scim_partial(scim_data, :patch)
+      assert {:error, errors} = DefaultValidator.validate_scim_partial(scim_data, :patch)
       assert Keyword.has_key?(errors, :active)
     end
 
@@ -167,7 +168,7 @@ defmodule ExScim.UsersSchemaValidationTest do
         "displayName" => "New Display Name"
       }
 
-      assert {:ok, validated_data} = Validator.validate_scim_partial(scim_data, :patch)
+      assert {:ok, validated_data} = DefaultValidator.validate_scim_partial(scim_data, :patch)
       assert validated_data == scim_data
     end
   end

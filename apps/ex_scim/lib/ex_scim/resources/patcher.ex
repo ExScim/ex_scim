@@ -2,33 +2,47 @@ defmodule ExScim.Resources.Patcher do
   @moduledoc false
   # Shared implementation of `ExScim.Users.Patcher` and `ExScim.Groups.Patcher`.
 
+  require Logger
+
   alias ExScim.Parser.Filter
   alias ExScim.Parser.Path
   alias ExScim.Resources.PatchError
 
-  @spec patch(map() | struct(), map(), [String.t()]) ::
+  @spec patch(map() | struct(), map(), [String.t()], String.t()) ::
           {:ok, map() | struct()}
           | {:error, {:invalid_patch, ExScim.Error.scim_type(), String.t()}}
-  def patch(resource, %{"Operations" => operations}, multi_valued) when is_list(operations) do
+  def patch(resource, %{"Operations" => operations}, multi_valued, core_schema)
+      when is_list(operations) do
     if length(operations) == 0 do
       invalid_patch("Operations array cannot be empty")
     else
-      multi_valued = Enum.map(multi_valued, &normalize/1)
+      ctx = %{
+        multi_valued: Enum.map(multi_valued, &String.downcase/1),
+        core_schema: core_schema,
+        domain?: domain_data?(resource)
+      }
+
+      if ctx.domain? do
+        Logger.warning(
+          "Patching structs or atom-keyed maps is deprecated and will be removed in 0.6.0. " <>
+            "Patch the SCIM representation instead."
+        )
+      end
 
       try do
         updated =
           Enum.reduce(operations, resource, fn op, acc ->
-            apply_op(acc, op, multi_valued)
+            apply_op(acc, op, ctx)
           end)
 
-        {:ok, updated}
+        {:ok, if(ctx.domain?, do: updated, else: list_extension_schemas(updated))}
       rescue
         e in PatchError -> {:error, {:invalid_patch, e.scim_type, e.message}}
       end
     end
   end
 
-  def patch(_resource, patch_ops, _multi_valued) do
+  def patch(_resource, patch_ops, _multi_valued, _core_schema) do
     cond do
       not is_map(patch_ops) ->
         invalid_patch("Patch operations must be a map")
@@ -46,62 +60,83 @@ defmodule ExScim.Resources.Patcher do
 
   defp invalid_patch(message), do: {:error, {:invalid_patch, :invalid_syntax, message}}
 
-  defp apply_op(resource, %{"op" => op} = operation, multi) when is_binary(op) do
+  defp domain_data?(resource) do
+    is_struct(resource) or Enum.any?(Map.keys(resource), &is_atom/1)
+  end
+
+  # RFC 7643 section 3: `schemas` lists every extension the resource uses.
+  defp list_extension_schemas(%{"schemas" => schemas} = resource) when is_list(schemas) do
+    listed = Enum.map(schemas, &String.downcase/1)
+
+    missing =
+      for {key, value} <- resource,
+          is_binary(key),
+          String.starts_with?(String.downcase(key), "urn:"),
+          value not in [nil, %{}],
+          String.downcase(key) not in listed,
+          do: key
+
+    Map.put(resource, "schemas", schemas ++ missing)
+  end
+
+  defp list_extension_schemas(resource), do: resource
+
+  defp apply_op(resource, %{"op" => op} = operation, ctx) when is_binary(op) do
     case String.downcase(op) do
-      "add" -> apply_add(resource, operation, multi)
-      "replace" -> apply_replace(resource, operation, multi)
-      "remove" -> apply_remove(resource, operation)
+      "add" -> apply_add(resource, operation, ctx)
+      "replace" -> apply_replace(resource, operation, ctx)
+      "remove" -> apply_remove(resource, operation, ctx)
       other -> raise PatchError, "Unsupported op: #{inspect(other)}"
     end
   end
 
-  defp apply_op(_resource, operation, _multi) do
+  defp apply_op(_resource, operation, _ctx) do
     raise PatchError, "Invalid operation: #{inspect(operation)} - missing or invalid 'op' field"
   end
 
-  defp apply_add(resource, %{"value" => value} = operation, multi) do
-    apply_set(resource, operation["path"], value, :add, multi)
+  defp apply_add(resource, %{"value" => value} = operation, ctx) do
+    apply_set(resource, operation["path"], value, :add, ctx)
   end
 
-  defp apply_add(_resource, operation, _multi) do
+  defp apply_add(_resource, operation, _ctx) do
     raise PatchError,
       message: "Add operation missing required 'value' field: #{inspect(operation)}",
       scim_type: :invalid_value
   end
 
-  defp apply_replace(resource, %{"value" => value} = operation, multi) do
-    apply_set(resource, operation["path"], value, :replace, multi)
+  defp apply_replace(resource, %{"value" => value} = operation, ctx) do
+    apply_set(resource, operation["path"], value, :replace, ctx)
   end
 
-  defp apply_replace(_resource, operation, _multi) do
+  defp apply_replace(_resource, operation, _ctx) do
     raise PatchError,
       message: "Replace operation missing required 'value' field: #{inspect(operation)}",
       scim_type: :invalid_value
   end
 
-  defp apply_set(resource, nil, value, mode, multi) when is_map(value) do
-    merge_attributes(resource, value, mode, multi)
+  defp apply_set(resource, nil, value, mode, ctx) when is_map(value) do
+    merge_attributes(resource, value, mode, ctx)
   end
 
-  defp apply_set(_resource, nil, value, _mode, _multi) do
+  defp apply_set(_resource, nil, value, _mode, _ctx) do
     raise PatchError,
       message: "Operation without a path requires an object value, got: #{inspect(value)}",
       scim_type: :invalid_value
   end
 
-  defp apply_set(resource, path, value, mode, multi) when is_binary(path) do
-    case parse_path(path) do
+  defp apply_set(resource, path, value, mode, ctx) when is_binary(path) do
+    case parse_path(path, ctx) do
       %{attrs: attrs, filter: nil} ->
-        multi? = multi_valued?(attrs, multi)
-        update_attr(resource, attrs, &set_value(&1, value, mode, multi?, multi), path)
+        multi? = multi_valued?(attrs, ctx)
+        update_attr(resource, attrs, &set_value(&1, value, mode, multi?, ctx), path)
 
       %{attrs: attrs, filter: filter, sub: sub} ->
         update_attr(
           resource,
           attrs,
           fn
-            list when is_list(list) -> set_matching(list, filter, sub, value, mode, path, multi)
-            nil when mode == :add -> set_matching([], filter, sub, value, mode, path, multi)
+            list when is_list(list) -> set_matching(list, filter, sub, value, mode, path, ctx)
+            nil when mode == :add -> set_matching([], filter, sub, value, mode, path, ctx)
             _ -> raise_no_target(path)
           end,
           path
@@ -109,8 +144,8 @@ defmodule ExScim.Resources.Patcher do
     end
   end
 
-  defp apply_remove(resource, %{"path" => path} = operation) when is_binary(path) do
-    case {parse_path(path), operation["value"]} do
+  defp apply_remove(resource, %{"path" => path} = operation, ctx) when is_binary(path) do
+    case {parse_path(path, ctx), operation["value"]} do
       {%{attrs: attrs, filter: nil}, values} when is_list(values) ->
         update_existing_attr(resource, attrs, path, fn
           list when is_list(list) -> Enum.reject(list, &listed?(&1, values))
@@ -128,35 +163,36 @@ defmodule ExScim.Resources.Patcher do
     end
   end
 
-  defp apply_remove(_resource, _operation) do
+  defp apply_remove(_resource, _operation, _ctx) do
     raise PatchError, message: "Remove operation requires a path", scim_type: :no_target
   end
 
-  defp merge_attributes(resource, attributes, mode, multi) do
+  defp merge_attributes(resource, attributes, mode, ctx) do
     Enum.reduce(attributes, resource, fn {name, value}, acc ->
-      multi? = multi_valued?([name], multi)
-      update_attr(acc, [name], &set_value(&1, value, mode, multi?, multi), name)
+      multi? = multi_valued?([name], ctx)
+      update_attr(acc, [name], &set_value(&1, value, mode, multi?, ctx), name)
     end)
   end
 
-  defp set_value(existing, value, :add, _multi?, _multi) when is_list(existing) do
+  defp set_value(existing, value, :add, _multi?, _ctx) when is_list(existing) do
     existing ++ List.wrap(value)
   end
 
-  defp set_value(nil, value, :add, true, _multi), do: List.wrap(value)
+  defp set_value(nil, value, :add, true, _ctx), do: List.wrap(value)
 
-  defp set_value(existing, value, :add, _multi?, multi)
+  # add and replace keep sub-attributes the value omits (RFC 7644 section 3.5.2.3).
+  defp set_value(existing, value, mode, false, ctx)
        when is_map(existing) and not is_struct(existing) and is_map(value) do
-    merge_attributes(existing, value, :add, multi)
+    merge_attributes(existing, value, mode, ctx)
   end
 
-  defp set_value(_existing, value, _mode, _multi?, _multi), do: value
+  defp set_value(_existing, value, _mode, _multi?, _ctx), do: value
 
-  defp set_matching(list, filter, sub, value, mode, path, multi) do
+  defp set_matching(list, filter, sub, value, mode, path, ctx) do
     {updated, matched?} =
       Enum.map_reduce(list, false, fn element, matched? ->
         if matches?(filter, element) do
-          {set_element(element, sub, value, mode, path, multi), true}
+          {set_element(element, sub, value, mode, path, ctx), true}
         else
           {element, matched?}
         end
@@ -168,25 +204,25 @@ defmodule ExScim.Resources.Patcher do
 
       {false, :add, {:eq, attr, expected}} ->
         new_element = update_attr(%{}, String.split(attr, "."), fn _ -> expected end, path)
-        list ++ [set_element(new_element, sub, value, :add, path, multi)]
+        list ++ [set_element(new_element, sub, value, :add, path, ctx)]
 
       _ ->
         raise_no_target(path)
     end
   end
 
-  defp set_element(_element, nil, value, :replace, _path, _multi), do: value
+  defp set_element(_element, nil, value, :replace, _path, _ctx), do: value
 
-  defp set_element(element, nil, value, :add, path, multi) when is_map(value) do
+  defp set_element(element, nil, value, :add, path, ctx) when is_map(value) do
     if is_map(element),
-      do: merge_attributes(element, value, :add, multi),
+      do: merge_attributes(element, value, :add, ctx),
       else: raise_no_target(path)
   end
 
-  defp set_element(_element, nil, _value, :add, path, _multi), do: raise_no_target(path)
+  defp set_element(_element, nil, _value, :add, path, _ctx), do: raise_no_target(path)
 
-  defp set_element(element, sub, value, mode, path, multi) do
-    update_attr(element, [sub], &set_value(&1, value, mode, false, multi), path)
+  defp set_element(element, sub, value, mode, path, ctx) do
+    update_attr(element, [sub], &set_value(&1, value, mode, false, ctx), path)
   end
 
   defp remove_matching(list, filter, nil, _path) do
@@ -208,18 +244,27 @@ defmodule ExScim.Resources.Patcher do
 
   # Path parsing
 
-  defp parse_path(path) do
-    case Path.path(path) do
-      {:ok, [parsed], "", _, _, _} ->
-        %{
-          attrs: String.split(parsed.attribute, "."),
-          filter: parse_filter(parsed[:filter], path),
-          sub: parsed[:sub]
-        }
-
-      _ ->
-        raise PatchError, message: "Invalid path: #{inspect(path)}", scim_type: :invalid_path
+  defp parse_path(path, ctx) do
+    with {:ok, [parsed], "", _, _, _} <- Path.path(path),
+         attrs when length(attrs) <= 2 <- String.split(parsed.attribute, ".") do
+      %{
+        attrs: extension_attrs(parsed[:schema], attrs, ctx),
+        filter: parse_filter(parsed[:filter], path),
+        sub: parsed[:sub]
+      }
+    else
+      _ -> raise PatchError, message: "Invalid path: #{inspect(path)}", scim_type: :invalid_path
     end
+  end
+
+  # Attributes of an extension schema live in an object keyed by its URN.
+  defp extension_attrs(nil, attrs, _ctx), do: attrs
+  defp extension_attrs(_schema, attrs, %{domain?: true}), do: attrs
+
+  defp extension_attrs(schema, attrs, ctx) do
+    if String.downcase(schema) == String.downcase(ctx.core_schema),
+      do: attrs,
+      else: [schema | attrs]
   end
 
   defp parse_filter(nil, _path), do: nil
@@ -298,7 +343,10 @@ defmodule ExScim.Resources.Patcher do
         container
 
       nil ->
-        raise_no_target(path)
+        case new_key(container, name) do
+          nil -> raise_no_target(path)
+          key -> Map.put(container, key, update_attr(%{}, rest, fun, path))
+        end
 
       key ->
         nested = update_attr(Map.get(container, key) || %{}, rest, fun, path)
@@ -339,17 +387,27 @@ defmodule ExScim.Resources.Patcher do
   defp remove_attr(nil, _names, _path), do: nil
   defp remove_attr(_container, _names, path), do: raise_no_target(path)
 
+  # SCIM attribute names are case-insensitive (RFC 7643 section 2.1).
   defp resolve_key(container, name) do
     if Map.has_key?(container, name) do
       name
     else
-      normalized = normalize(name)
-
       container
       |> Map.keys()
-      |> Enum.find(&(&1 != :__struct__ and normalize(&1) == normalized))
+      |> Enum.find(&key_matches?(&1, name))
     end
   end
+
+  defp key_matches?(key, name) when is_binary(key),
+    do: String.downcase(key) == String.downcase(name)
+
+  # Deprecated: atom keys of structs and domain maps (`:user_name` for `userName`).
+  defp key_matches?(:__struct__, _name), do: false
+
+  defp key_matches?(key, name) when is_atom(key),
+    do: strip_underscores(key) == strip_underscores(name)
+
+  defp key_matches?(_key, _name), do: false
 
   defp new_key(container, _name) when is_struct(container), do: nil
 
@@ -361,11 +419,8 @@ defmodule ExScim.Resources.Patcher do
     end
   end
 
-  defp normalize(key) when is_atom(key) or is_binary(key) do
-    key |> to_string() |> String.replace("_", "") |> String.downcase()
-  end
-
-  defp normalize(_key), do: nil
+  defp strip_underscores(key),
+    do: key |> to_string() |> String.replace("_", "") |> String.downcase()
 
   defp underscore(name) do
     name |> String.replace(~r/([a-z0-9])([A-Z])/, "\\1_\\2") |> String.downcase()
@@ -377,7 +432,8 @@ defmodule ExScim.Resources.Patcher do
     ArgumentError -> nil
   end
 
-  defp multi_valued?(attrs, multi), do: normalize(List.last(attrs)) in multi
+  defp multi_valued?(attrs, ctx),
+    do: String.downcase(to_string(List.last(attrs))) in ctx.multi_valued
 
   defp raise_no_target(path) do
     raise PatchError,

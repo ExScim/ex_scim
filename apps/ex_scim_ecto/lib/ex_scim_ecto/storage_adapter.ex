@@ -57,6 +57,11 @@ defmodule ExScimEcto.StorageAdapter do
   When `tenant_key` is configured and `scope.tenant_id` is not nil, all queries
   include a WHERE clause on the tenant column, and creates inject the tenant_id.
 
+  PUT and PATCH pass the mapper's full domain struct to `changeset/2`, with nil
+  for cleared fields and for fields the mapper doesn't set. Cast only the
+  fields your mapper owns, or unrelated columns such as a password hash are
+  cleared.
+
   To map domain fields to DB columns with value transformation:
 
       config :ex_scim,
@@ -187,7 +192,7 @@ defmodule ExScimEcto.StorageAdapter do
     with {:ok, existing} <- get_resource_by(&user_schema/0, lookup_key, id, tenant_key, scope) do
       attrs =
         domain_user
-        |> map_from_struct()
+        |> update_attrs()
         |> convert_preloaded_structs(associations)
         |> apply_field_mapping_to_storage(field_mapping)
 
@@ -335,7 +340,7 @@ defmodule ExScimEcto.StorageAdapter do
     with {:ok, existing} <- get_resource_by(&group_schema/0, lookup_key, id, tenant_key, scope) do
       attrs =
         domain_group
-        |> map_from_struct()
+        |> update_attrs()
         |> convert_preloaded_structs(associations)
         |> apply_field_mapping_to_storage(field_mapping)
 
@@ -491,6 +496,16 @@ defmodule ExScimEcto.StorageAdapter do
   defp inject_tenant(data, tenant_key, %ExScim.Scope{tenant_id: tenant_id}) do
     Map.put(data, tenant_key, tenant_id)
   end
+
+  # Nil fields are kept so cleared values reach the changeset.
+  defp update_attrs(domain) when is_struct(domain) do
+    domain
+    |> Map.from_struct()
+    |> Map.drop([:__meta__])
+    |> Map.reject(fn {_key, value} -> match?(%Ecto.Association.NotLoaded{}, value) end)
+  end
+
+  defp update_attrs(domain), do: domain
 
   defp convert_preloaded_structs(map, []), do: map
 

@@ -1,6 +1,8 @@
 defmodule ExScim.Groups.PatcherTest do
   use ExUnit.Case, async: true
 
+  @moduletag :capture_log
+
   alias ExScim.Groups.Patcher
 
   describe "patch/2 with maps" do

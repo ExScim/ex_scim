@@ -11,6 +11,7 @@ defmodule ExScim.Operations.Groups do
   alias ExScim.Groups.Patcher
   alias ExScim.Config
   alias ExScim.Lifecycle
+  alias ExScim.Schema.PatchValidator
   alias ExScim.Resources.Resource
   alias ExScim.Resources.IdGenerator
   alias ExScim.Resources.Metadata
@@ -102,17 +103,27 @@ defmodule ExScim.Operations.Groups do
   end
 
   @doc """
-  Applies a SCIM PATCH operation to an existing group.
+  Applies a SCIM PATCH to an existing group.
 
-  Fetches the group, validates the patch payload, applies patch operations,
-  runs lifecycle hooks, and stores.
-  Returns `{:ok, scim_group}` or `{:error, reason}`.
+  Paths are checked against the Group schemas first. The operations then run
+  on the mapper's SCIM representation of the stored group, and the result is
+  mapped back and stored like a PUT.
+
+  Unknown attributes return `{:error, {:invalid_patch, :invalid_path, message}}`.
+  Changing a read-only or immutable attribute returns `:mutability`. Values
+  equal to the current ones are ignored.
   """
   def patch_group_from_scim(group_id, scim_data, scope) do
-    with {:ok, domain_group} <- Storage.get_group(group_id, scope),
-         {:ok, schema_validated_data} <- Validator.validate_scim_partial(scim_data, :patch),
-         {:ok, patched_group} <- Patcher.patch(domain_group, schema_validated_data),
-         group_with_meta <- Metadata.update_metadata(patched_group, "Group"),
+    with {:ok, patch_ops} <- PatchValidator.validate(scim_data, "Group"),
+         {:ok, existing_group} <- Storage.get_group(group_id, scope),
+         {:ok, current} <- Mapper.to_scim(existing_group, scope),
+         {:ok, patch_ops} <- PatchValidator.validate_changes(patch_ops, current, "Group"),
+         {:ok, patched} <- Patcher.patch(current, patch_ops),
+         {:ok, group_struct} <- Mapper.from_scim(patched, scope),
+         group_with_id <- Resource.set_id(group_struct, group_id),
+         group_with_created <-
+           Map.put(group_with_id, :meta_created, Map.get(existing_group, :meta_created)),
+         group_with_meta <- Metadata.update_metadata(group_with_created, "Group"),
          {:ok, hooked_data} <-
            Lifecycle.before_patch(:group, group_id, group_with_meta, scope),
          {:ok, stored_group} <-
