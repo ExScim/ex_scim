@@ -162,15 +162,15 @@ defmodule ExScimEcto.QueryFilter do
 
   # Like helpers - atom (root table column)
   defp apply_like(field, :co, value) when is_atom(field) do
-    dynamic([u], like(field(u, ^field), ^"%#{value}%"))
+    dynamic([u], like(type(field(u, ^field), :string), ^"%#{value}%"))
   end
 
   defp apply_like(field, :sw, value) when is_atom(field) do
-    dynamic([u], like(field(u, ^field), ^"#{value}%"))
+    dynamic([u], like(type(field(u, ^field), :string), ^"#{value}%"))
   end
 
   defp apply_like(field, :ew, value) when is_atom(field) do
-    dynamic([u], like(field(u, ^field), ^"%#{value}"))
+    dynamic([u], like(type(field(u, ^field), :string), ^"%#{value}"))
   end
 
   # Like helpers - transformed
@@ -180,15 +180,15 @@ defmodule ExScimEcto.QueryFilter do
 
   # Like helpers - association
   defp apply_like({:assoc, assoc_name, col}, :co, value) do
-    dynamic([{^assoc_name, x}], like(field(x, ^col), ^"%#{value}%"))
+    dynamic([{^assoc_name, x}], like(type(field(x, ^col), :string), ^"%#{value}%"))
   end
 
   defp apply_like({:assoc, assoc_name, col}, :sw, value) do
-    dynamic([{^assoc_name, x}], like(field(x, ^col), ^"#{value}%"))
+    dynamic([{^assoc_name, x}], like(type(field(x, ^col), :string), ^"#{value}%"))
   end
 
   defp apply_like({:assoc, assoc_name, col}, :ew, value) do
-    dynamic([{^assoc_name, x}], like(field(x, ^col), ^"%#{value}"))
+    dynamic([{^assoc_name, x}], like(type(field(x, ^col), :string), ^"%#{value}"))
   end
 
   # Present helpers - transformed
