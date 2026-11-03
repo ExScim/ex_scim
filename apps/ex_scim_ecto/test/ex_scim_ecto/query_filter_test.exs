@@ -112,6 +112,14 @@ defmodule ExScimEcto.QueryFilterTest do
 
       assert join_count(query) == 0
     end
+
+    for op <- [:co, :sw, :ew] do
+      test "#{op} casts the column to string" do
+        query = QueryFilter.apply_filter(base_query(), {unquote(op), "id", "ab"})
+
+        assert inspect(query) =~ "like(type(u0.id, :string)"
+      end
+    end
   end
 
   # 2. Association mapping adds named LEFT JOIN and filters on association field

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-03
+
+### ex_scim_ecto
+
+#### Fixed
+
+- Cast non-text columns before applying filters
+
 ## [0.5.0] - 2026-10-31
 
 ### ex_scim
