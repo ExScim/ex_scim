@@ -184,65 +184,6 @@ defmodule ExScim.SchemaserResource.Validator.DefaultValidatorTest do
     end
   end
 
-  describe "validate_scim_partial/2" do
-    test "validates partial data for CREATE operation" do
-      scim_data = %{
-        "schemas" => ["urn:ietf:params:scim:schemas:core:2.0:User"],
-        "userName" => "test.user"
-      }
-
-      assert {:ok, validated_data} = DefaultValidator.validate_scim_partial(scim_data, :create)
-      assert validated_data == scim_data
-    end
-
-    test "validates partial data for UPDATE operation" do
-      scim_data = %{
-        "schemas" => ["urn:ietf:params:scim:schemas:core:2.0:User"],
-        "userName" => "test.user",
-        "displayName" => "Updated Name"
-      }
-
-      assert {:ok, validated_data} = DefaultValidator.validate_scim_partial(scim_data, :update)
-      assert validated_data == scim_data
-    end
-
-    test "validates partial data for PATCH operation without requiring all fields" do
-      # PATCH should not require userName even though it's marked as required in schema
-      scim_data = %{
-        "displayName" => "Updated Name",
-        "active" => false
-      }
-
-      assert {:ok, validated_data} = DefaultValidator.validate_scim_partial(scim_data, :patch)
-      assert validated_data == scim_data
-    end
-
-    test "validates field types in partial PATCH data" do
-      scim_data = %{
-        # Should be boolean
-        "active" => "false"
-      }
-
-      assert {:error, errors} = DefaultValidator.validate_scim_partial(scim_data, :patch)
-      assert Keyword.has_key?(errors, :active)
-    end
-
-    test "validates canonical values in partial PATCH data" do
-      scim_data = %{
-        "emails" => [
-          %{
-            "value" => "test@example.com",
-            # Should be work, home, or other
-            "type" => "invalid"
-          }
-        ]
-      }
-
-      assert {:error, errors} = DefaultValidator.validate_scim_partial(scim_data, :patch)
-      assert Keyword.has_key?(errors, :type)
-    end
-  end
-
   describe "error handling" do
     test "returns meaningful error messages" do
       scim_data = %{

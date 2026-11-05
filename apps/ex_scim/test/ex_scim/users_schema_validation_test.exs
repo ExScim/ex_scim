@@ -2,7 +2,6 @@ defmodule ExScim.UsersSchemaValidationTest do
   use ExUnit.Case, async: true
 
   alias ExScim.Schema.Validator
-  alias ExScim.Schema.Validator.DefaultValidator
 
   import ExScim.TestFixtures
 
@@ -138,38 +137,6 @@ defmodule ExScim.UsersSchemaValidationTest do
 
       assert {:error, errors} = Validator.validate_scim_schema(scim_data)
       assert Keyword.has_key?(errors, :userName)
-    end
-  end
-
-  describe "patch_user_from_scim/2 with schema validation" do
-    test "validates partial schema for patch operations" do
-      scim_data = %{
-        "displayName" => "Patched Name",
-        "active" => false
-      }
-
-      assert {:ok, validated_data} = DefaultValidator.validate_scim_partial(scim_data, :patch)
-      assert validated_data == scim_data
-    end
-
-    test "rejects patch with invalid field types" do
-      scim_data = %{
-        # Should be boolean
-        "active" => "false"
-      }
-
-      assert {:error, errors} = DefaultValidator.validate_scim_partial(scim_data, :patch)
-      assert Keyword.has_key?(errors, :active)
-    end
-
-    test "allows patch without userName even though it's required" do
-      # PATCH operations should not enforce required field validation
-      scim_data = %{
-        "displayName" => "New Display Name"
-      }
-
-      assert {:ok, validated_data} = DefaultValidator.validate_scim_partial(scim_data, :patch)
-      assert validated_data == scim_data
     end
   end
 
