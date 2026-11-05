@@ -2,14 +2,12 @@ defmodule ExScim.Resources.Patcher do
   @moduledoc false
   # Shared implementation of `ExScim.Users.Patcher` and `ExScim.Groups.Patcher`.
 
-  require Logger
-
   alias ExScim.Parser.Filter
   alias ExScim.Parser.Path
   alias ExScim.Resources.PatchError
 
-  @spec patch(map() | struct(), map(), [String.t()], String.t()) ::
-          {:ok, map() | struct()}
+  @spec patch(map(), map(), [String.t()], String.t()) ::
+          {:ok, map()}
           | {:error, {:invalid_patch, ExScim.Error.scim_type(), String.t()}}
   def patch(resource, %{"Operations" => operations}, multi_valued, core_schema)
       when is_list(operations) do
@@ -18,16 +16,8 @@ defmodule ExScim.Resources.Patcher do
     else
       ctx = %{
         multi_valued: Enum.map(multi_valued, &String.downcase/1),
-        core_schema: core_schema,
-        domain?: domain_data?(resource)
+        core_schema: core_schema
       }
-
-      if ctx.domain? do
-        Logger.warning(
-          "Patching structs or atom-keyed maps is deprecated and will be removed in 0.6.0. " <>
-            "Patch the SCIM representation instead."
-        )
-      end
 
       try do
         updated =
@@ -35,7 +25,7 @@ defmodule ExScim.Resources.Patcher do
             apply_op(acc, op, ctx)
           end)
 
-        {:ok, if(ctx.domain?, do: updated, else: list_extension_schemas(updated))}
+        {:ok, list_extension_schemas(updated)}
       rescue
         e in PatchError -> {:error, {:invalid_patch, e.scim_type, e.message}}
       end
@@ -59,10 +49,6 @@ defmodule ExScim.Resources.Patcher do
   end
 
   defp invalid_patch(message), do: {:error, {:invalid_patch, :invalid_syntax, message}}
-
-  defp domain_data?(resource) do
-    is_struct(resource) or Enum.any?(Map.keys(resource), &is_atom/1)
-  end
 
   # RFC 7643 section 3: `schemas` lists every extension the resource uses.
   defp list_extension_schemas(%{"schemas" => schemas} = resource) when is_list(schemas) do
@@ -259,7 +245,6 @@ defmodule ExScim.Resources.Patcher do
 
   # Attributes of an extension schema live in an object keyed by its URN.
   defp extension_attrs(nil, attrs, _ctx), do: attrs
-  defp extension_attrs(_schema, attrs, %{domain?: true}), do: attrs
 
   defp extension_attrs(schema, attrs, ctx) do
     if String.downcase(schema) == String.downcase(ctx.core_schema),
@@ -331,22 +316,14 @@ defmodule ExScim.Resources.Patcher do
   defp get_attr(_value, _names), do: nil
 
   defp update_attr(container, [name], fun, _path) when is_map(container) do
-    case resolve_key(container, name) || new_key(container, name) do
-      nil -> container
-      key -> Map.put(container, key, fun.(Map.get(container, key)))
-    end
+    key = resolve_key(container, name) || name
+    Map.put(container, key, fun.(Map.get(container, key)))
   end
 
   defp update_attr(container, [name | rest], fun, path) when is_map(container) do
     case resolve_key(container, name) do
-      nil when is_struct(container) ->
-        container
-
       nil ->
-        case new_key(container, name) do
-          nil -> raise_no_target(path)
-          key -> Map.put(container, key, update_attr(%{}, rest, fun, path))
-        end
+        Map.put(container, name, update_attr(%{}, rest, fun, path))
 
       key ->
         nested = update_attr(Map.get(container, key) || %{}, rest, fun, path)
@@ -378,7 +355,6 @@ defmodule ExScim.Resources.Patcher do
   defp remove_attr(container, [name | rest], path) when is_map(container) do
     case {resolve_key(container, name), rest} do
       {nil, _} -> container
-      {key, []} when is_struct(container) -> Map.put(container, key, nil)
       {key, []} -> Map.delete(container, key)
       {key, _} -> Map.put(container, key, remove_attr(Map.get(container, key), rest, path))
     end
@@ -401,36 +377,7 @@ defmodule ExScim.Resources.Patcher do
   defp key_matches?(key, name) when is_binary(key),
     do: String.downcase(key) == String.downcase(name)
 
-  # Deprecated: atom keys of structs and domain maps (`:user_name` for `userName`).
-  defp key_matches?(:__struct__, _name), do: false
-
-  defp key_matches?(key, name) when is_atom(key),
-    do: strip_underscores(key) == strip_underscores(name)
-
   defp key_matches?(_key, _name), do: false
-
-  defp new_key(container, _name) when is_struct(container), do: nil
-
-  defp new_key(container, name) do
-    if Enum.any?(Map.keys(container), &is_atom/1) do
-      name |> underscore() |> existing_atom()
-    else
-      name
-    end
-  end
-
-  defp strip_underscores(key),
-    do: key |> to_string() |> String.replace("_", "") |> String.downcase()
-
-  defp underscore(name) do
-    name |> String.replace(~r/([a-z0-9])([A-Z])/, "\\1_\\2") |> String.downcase()
-  end
-
-  defp existing_atom(name) do
-    String.to_existing_atom(name)
-  rescue
-    ArgumentError -> nil
-  end
 
   defp multi_valued?(attrs, ctx),
     do: String.downcase(to_string(List.last(attrs))) in ctx.multi_valued

@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-05
+
+### ex_scim
+
+#### Breaking Changes
+
+- `Users.Mapper.DefaultMapper` and `Groups.Mapper.DefaultMapper` storing the SCIM representation (string keys)
+- Client-supplied `id` ignored on create
+- `Schema.Repository.LegacyRepository` removed
+- `Schema.Validator.validate_scim_partial/2` and the `validate_scim_partial/2` adapter callback removed
+- `Users.Patcher.patch/2` and `Groups.Patcher.patch/2` on structs and atom-keyed maps removed
+
+#### Added
+
+- Core User attributes: `nickName`, `profileUrl`, `password`, `ims`, `groups`, `entitlements`, `roles`, `x509Certificates`, `name.middleName`, `name.honorificPrefix`, `name.honorificSuffix`
+- Group `members.display`
+- `Storage.Adapter` optional `list_members/2`, `replace_members/3`, `list_groups_for_member/2`, `memberships?/0` callbacks
+- Nested groups with cycle detection
+- Group `members` validation
+- `User.groups` with `direct` and `indirect` memberships
+- Membership cleanup on user and group delete
+- `EtsStorage` group memberships
+
+#### Fixed
+
+- `EtsStorage` with the default mappers losing ids and ignoring filters
+- `meta.created` missing without a `:meta_created` key
+
+### ex_scim_ecto
+
+#### Added
+
+- `StorageAdapter` group memberships and `:membership_model` config
+
 ## [0.5.1] - 2026-11-03
 
 ### ex_scim_ecto

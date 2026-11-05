@@ -3,7 +3,8 @@ defmodule Provider.Scim.ResourceImpl do
   Implementation of ExScim.Resources.Resource protocol for Provider domain structs.
   """
 
-  alias Provider.Accounts.{User, Group}
+  alias Provider.Accounts.Group
+  alias Provider.Accounts.User
 
   defimpl ExScim.Resources.Resource, for: User do
     @doc "Get the SCIM resource ID from a User struct"

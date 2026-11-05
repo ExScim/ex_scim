@@ -186,11 +186,11 @@ defmodule ExScim.Operations.UsersTest do
       assert String.match?(scim_user["id"], ~r/^[0-9a-f-]{36}$/)
     end
 
-    test "preserves caller-supplied ID" do
+    test "ignores a caller-supplied ID" do
       scim_data = valid_scim_user_attrs() |> Map.put("id", "custom-id-123")
 
       assert {:ok, scim_user} = Users.create_user_from_scim(scim_data, @scope)
-      assert scim_user["id"] == "custom-id-123"
+      assert scim_user["id"] != "custom-id-123"
     end
 
     test "sets metadata timestamps" do
@@ -614,9 +614,9 @@ defmodule ExScim.Operations.UsersTest do
       :ok = Users.delete_user(id, @scope)
 
       assert [
-               {:create, :user, %{id: ^id}, @scope},
-               {:replace, :user, %{id: ^id, user_name: "replaced.user"}, @scope},
-               {:patch, :user, %{id: ^id, user_name: "patched.user"}, @scope},
+               {:create, :user, %{"id" => ^id}, @scope},
+               {:replace, :user, %{"id" => ^id, "userName" => "replaced.user"}, @scope},
+               {:patch, :user, %{"id" => ^id, "userName" => "patched.user"}, @scope},
                {:delete, :user, ^id, @scope}
              ] = for({:before_commit, args} <- Process.get(:lifecycle_calls, []), do: args)
     end

@@ -30,6 +30,11 @@ defmodule ExScim.Schema.Definitions.Group do
         mutability: :immutable
       )
 
+      sub_attribute(:display, :string,
+        description: "A human-readable name, primarily used for display purposes",
+        mutability: :immutable
+      )
+
       sub_attribute(:type, :string,
         description: "A label indicating the type of resource",
         canonical_values: ["User", "Group"],

@@ -23,6 +23,8 @@ defmodule ExScim.Storage.EtsStorage do
   @groups_display_name_index :scim_groups_display_name
   @groups_external_id_index :scim_groups_external_id
 
+  @members_table :scim_group_members
+
   ## Client API
 
   @doc false
@@ -117,6 +119,34 @@ defmodule ExScim.Storage.EtsStorage do
     end
   end
 
+  @doc false
+  def list_members(group_id, _scope \\ nil) do
+    members =
+      for {^group_id, type, member_id} <- :ets.lookup(@members_table, group_id),
+          {:ok, record} <- [get_member(type, member_id)],
+          do: {type, record}
+
+    {:ok, members}
+  end
+
+  @doc false
+  def replace_members(group_id, members, _scope \\ nil) do
+    GenServer.call(__MODULE__, {:replace_members, group_id, members})
+  end
+
+  @doc false
+  def list_groups_for_member({type, id}, _scope \\ nil) do
+    groups =
+      for {group_id, _type, _id} <- :ets.match_object(@members_table, {:_, type, id}),
+          {:ok, group} <- [get_group(group_id)],
+          do: group
+
+    {:ok, groups}
+  end
+
+  defp get_member(:user, id), do: get_user(id)
+  defp get_member(:group, id), do: get_group(id)
+
   ## GenServer Callbacks
 
   def init(_opts) do
@@ -127,6 +157,8 @@ defmodule ExScim.Storage.EtsStorage do
     :ets.new(@groups_table_name, [:set, :public, :named_table, {:read_concurrency, true}])
     :ets.new(@groups_display_name_index, [:set, :public, :named_table, {:read_concurrency, true}])
     :ets.new(@groups_external_id_index, [:set, :public, :named_table, {:read_concurrency, true}])
+
+    :ets.new(@members_table, [:bag, :public, :named_table, {:read_concurrency, true}])
 
     {:ok, %{}}
   end
@@ -255,10 +287,17 @@ defmodule ExScim.Storage.EtsStorage do
     :ets.delete_all_objects(@groups_table_name)
     :ets.delete_all_objects(@groups_display_name_index)
     :ets.delete_all_objects(@groups_external_id_index)
+    :ets.delete_all_objects(@members_table)
     {:reply, :ok, state}
   end
 
   # Group GenServer handlers
+  def handle_call({:replace_members, group_id, members}, _from, state) do
+    :ets.delete(@members_table, group_id)
+    :ets.insert(@members_table, for({type, id} <- members, do: {group_id, type, id}))
+    {:reply, :ok, state}
+  end
+
   def handle_call({:list_groups, filter_ast, sort_opts, pagination_opts}, _from, state) do
     groups =
       @groups_table_name

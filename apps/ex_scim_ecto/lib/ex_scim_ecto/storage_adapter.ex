@@ -14,13 +14,13 @@ defmodule ExScimEcto.StorageAdapter do
       config :ex_scim,
         storage_repo: MyApp.Repo,
         user_model: {MyApp.Accounts.User, preload: [:roles, :organizations]},
-        group_model: {MyApp.Groups.Group, preload: [:members]}
+        group_model: {MyApp.Groups.Group, preload: [:owner]}
 
   To configure a custom lookup key (defaults to `:id`):
 
       config :ex_scim,
         user_model: {MyApp.Accounts.User, lookup_key: :resource_id},
-        group_model: {MyApp.Groups.Group, preload: [:members], lookup_key: :uuid}
+        group_model: {MyApp.Groups.Group, lookup_key: :uuid}
 
   To map SCIM complex attribute paths to DB columns:
 
@@ -86,6 +86,28 @@ defmodule ExScimEcto.StorageAdapter do
   `field_mapping` works together with `filter_mapping`: `filter_mapping` resolves
   SCIM attribute paths to domain field atoms, and `field_mapping` then resolves
   domain field atoms to DB columns with value transformation.
+
+  To store group memberships, including nested groups:
+
+      config :ex_scim,
+        membership_model: MyApp.Groups.Membership
+
+  Each row links a group to one member. The default columns are `:group_id`,
+  `:member_id` and `:member_type`, which holds `"User"` or `"Group"`. Both id
+  columns store SCIM ids, so `:member_id` can't be a foreign key. Other column
+  names can be set with
+  `{MyApp.Groups.Membership, group_key: ..., member_key: ..., type_key: ...}`.
+  ExScim then stores `Group.members` and derives `User.groups`, and the group
+  mapper doesn't handle `members`.
+
+      create table(:group_memberships) do
+        add :group_id, references(:groups, type: :binary_id, on_delete: :delete_all)
+        add :member_id, :binary_id, null: false
+        add :member_type, :string, null: false
+      end
+
+      create unique_index(:group_memberships, [:group_id, :member_type, :member_id])
+      create index(:group_memberships, [:member_type, :member_id])
 
   Each create, replace, patch, and delete runs in a `storage_repo` transaction
   together with `c:ExScim.Lifecycle.Adapter.before_commit/4`. Writes the hook
@@ -396,6 +418,78 @@ defmodule ExScimEcto.StorageAdapter do
 
   @doc false
   @impl true
+  def memberships?, do: Application.get_env(:ex_scim, :membership_model) != nil
+
+  @doc false
+  @impl true
+  def list_members(group_id, scope \\ nil) do
+    {membership, group_key, member_key, type_key} = membership_schema()
+
+    rows =
+      from(m in membership,
+        where: field(m, ^group_key) == ^group_id,
+        order_by: ^membership.__schema__(:primary_key),
+        select: {field(m, ^type_key), field(m, ^member_key)}
+      )
+      |> repo().all()
+
+    users = load_by_ids(&user_schema/0, for({"User", id} <- rows, do: id), scope)
+    groups = load_by_ids(&group_schema/0, for({"Group", id} <- rows, do: id), scope)
+
+    members =
+      for {type, id} <- rows,
+          {member_type, records} = if(type == "Group", do: {:group, groups}, else: {:user, users}),
+          record = Map.get(records, to_string(id)),
+          record != nil,
+          do: {member_type, record}
+
+    {:ok, members}
+  end
+
+  @doc false
+  @impl true
+  def replace_members(group_id, members, _scope \\ nil) do
+    {membership, group_key, member_key, type_key} = membership_schema()
+
+    repo().delete_all(from(m in membership, where: field(m, ^group_key) == ^group_id))
+
+    Enum.reduce_while(members, :ok, fn {type, id}, :ok ->
+      row =
+        struct(membership, [{group_key, group_id}, {member_key, id}, {type_key, type_name(type)}])
+
+      case repo().insert(row) do
+        {:ok, _} -> {:cont, :ok}
+        {:error, changeset} -> {:halt, {:error, changeset_to_validation_errors(changeset)}}
+      end
+    end)
+  end
+
+  @doc false
+  @impl true
+  def list_groups_for_member({type, id}, scope \\ nil) do
+    {membership, group_key, member_key, type_key} = membership_schema()
+
+    {group_schema, associations, lookup_key, _filter_mapping, tenant_key, field_mapping} =
+      group_schema()
+
+    group_ids =
+      from(m in membership,
+        where: field(m, ^member_key) == ^id and field(m, ^type_key) == ^type_name(type),
+        select: field(m, ^group_key)
+      )
+
+    groups =
+      from(g in group_schema, where: field(g, ^lookup_key) in subquery(group_ids))
+      |> apply_tenant_scope(tenant_key, scope)
+      |> repo().all()
+      |> maybe_preload(repo(), associations)
+      |> Enum.map(&apply_field_mapping_from_storage(&1, field_mapping))
+
+    {:ok, groups}
+  end
+
+  @doc false
+  @impl true
   def transaction(fun) do
     repo = repo()
 
@@ -418,6 +512,39 @@ defmodule ExScimEcto.StorageAdapter do
   defp user_schema, do: parse_model_config(:user_model)
 
   defp group_schema, do: parse_model_config(:group_model)
+
+  defp membership_schema do
+    case Application.get_env(:ex_scim, :membership_model) do
+      {model, opts} ->
+        {model, Keyword.get(opts, :group_key, :group_id),
+         Keyword.get(opts, :member_key, :member_id), Keyword.get(opts, :type_key, :member_type)}
+
+      model when not is_nil(model) ->
+        {model, :group_id, :member_id, :member_type}
+
+      nil ->
+        raise ArgumentError, "Missing configuration for :membership_model"
+    end
+  end
+
+  defp type_name(:user), do: "User"
+  defp type_name(:group), do: "Group"
+
+  defp load_by_ids(_schema_opts_fn, [], _scope), do: %{}
+
+  defp load_by_ids(schema_opts_fn, ids, scope) do
+    {schema, associations, lookup_key, _filter_mapping, tenant_key, field_mapping} =
+      schema_opts_fn.()
+
+    from(r in schema, where: field(r, ^lookup_key) in ^ids)
+    |> apply_tenant_scope(tenant_key, scope)
+    |> repo().all()
+    |> maybe_preload(repo(), associations)
+    |> Map.new(fn record ->
+      {to_string(Map.fetch!(record, lookup_key)),
+       apply_field_mapping_from_storage(record, field_mapping)}
+    end)
+  end
 
   defp parse_model_config(config_key) do
     case Application.get_env(:ex_scim, config_key) do

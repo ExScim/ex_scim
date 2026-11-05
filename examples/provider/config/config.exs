@@ -81,6 +81,7 @@ config :ex_scim,
        "name.formatted" => :display_name
      }},
   group_model: Provider.Accounts.Group,
+  membership_model: Provider.Accounts.GroupMembership,
   bulk_supported: true,
   bulk_max_operations: 1000,
   bulk_max_payload_size: 1_048_576,

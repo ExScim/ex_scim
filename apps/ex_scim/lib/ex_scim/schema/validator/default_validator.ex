@@ -16,14 +16,6 @@ defmodule ExScim.Schema.Validator.DefaultValidator do
     end
   end
 
-  @impl true
-  def validate_scim_partial(scim_data, operation_type) do
-    case operation_type do
-      :patch -> validate_scim_schema_partial(scim_data)
-      _ -> validate_scim_schema(scim_data)
-    end
-  end
-
   defp get_schema_uri(scim_data) do
     case Map.get(scim_data, "schemas") do
       schemas when is_list(schemas) ->
@@ -57,40 +49,6 @@ defmodule ExScim.Schema.Validator.DefaultValidator do
     case errors do
       [] -> {:ok, scim_data}
       errors -> {:error, errors}
-    end
-  end
-
-  defp validate_scim_schema_partial(scim_data) do
-    with {:ok, schema_uri} <- get_schema_uri_for_partial(scim_data),
-         {:ok, schema} <- Repository.get_schema(schema_uri) do
-      errors = []
-
-      errors =
-        errors
-        |> validate_attribute_types(scim_data, schema)
-        |> validate_canonical_values(scim_data, schema)
-
-      case errors do
-        [] -> {:ok, scim_data}
-        errors -> {:error, errors}
-      end
-    else
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  # For partial validation (PATCH), try to determine the schema URI from the data.
-  # Falls back to the first configured resource type's schema if no schemas key is present.
-  defp get_schema_uri_for_partial(scim_data) do
-    case get_schema_uri(scim_data) do
-      {:ok, _} = result ->
-        result
-
-      {:error, _} ->
-        case ExScim.Config.resource_types() do
-          [first | _] -> {:ok, first.schema}
-          [] -> {:error, [schemas: "no resource types configured"]}
-        end
     end
   end
 

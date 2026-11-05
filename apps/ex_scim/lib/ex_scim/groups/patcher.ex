@@ -26,12 +26,10 @@ defmodule ExScim.Groups.Patcher do
   of operations. Each operation must have an `"op"` field (`"add"`, `"replace"`,
   or `"remove"`) and optionally `"path"` and `"value"` fields.
 
-  Passing a struct or an atom-keyed map is deprecated and logs a warning.
-
   Returns `{:ok, updated_group}` or `{:error, {:invalid_patch, scim_type, message}}`.
   """
-  @spec patch(map() | struct(), map()) ::
-          {:ok, map() | struct()}
+  @spec patch(map(), map()) ::
+          {:ok, map()}
           | {:error, {:invalid_patch, ExScim.Error.scim_type(), String.t()}}
   def patch(group_data, patch_ops) do
     ExScim.Resources.Patcher.patch(group_data, patch_ops, @multi_valued, @core_schema)

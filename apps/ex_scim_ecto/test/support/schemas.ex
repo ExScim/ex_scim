@@ -86,3 +86,14 @@ defmodule ExScimEcto.TestSupport.Group do
     |> validate_required([:id, :display_name])
   end
 end
+
+defmodule ExScimEcto.TestSupport.Membership do
+  @moduledoc "Group membership rows for the membership tests."
+  use Ecto.Schema
+
+  schema "group_memberships" do
+    field(:group_id, :string)
+    field(:member_id, :string)
+    field(:member_type, :string)
+  end
+end

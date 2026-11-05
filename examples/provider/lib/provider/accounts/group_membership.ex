@@ -1,24 +1,18 @@
 defmodule Provider.Accounts.GroupMembership do
+  @moduledoc """
+  Links a group to one member, a user or a nested group.
+
+  Used by `ExScimEcto.StorageAdapter` through the `:membership_model` config.
+  """
+
   use Ecto.Schema
-  import Ecto.Changeset
-  alias Provider.Accounts.User
-  alias Provider.Accounts.Group
 
   schema "group_memberships" do
-    field(:type, :string)
-    # field :group_id, :id
-    # field :user_id, :id
+    field(:member_id, :binary_id)
+    field(:member_type, :string)
 
-    belongs_to(:group, Group)
-    belongs_to(:user, User)
+    belongs_to(:group, Provider.Accounts.Group, type: :binary_id)
 
     timestamps(type: :utc_datetime)
-  end
-
-  @doc false
-  def changeset(group_membership, attrs) do
-    group_membership
-    |> cast(attrs, [:type])
-    |> validate_required([:type])
   end
 end

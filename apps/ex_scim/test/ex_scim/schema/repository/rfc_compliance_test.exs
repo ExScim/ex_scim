@@ -4,33 +4,80 @@ defmodule ExScim.Schema.Repository.RfcComplianceTest do
   alias ExScim.Schema.Repository.DefaultRepository
 
   describe "RFC 7643 complete attribute coverage" do
+    @user_attributes %{
+      "userName" => [],
+      "name" => ~w(formatted familyName givenName middleName honorificPrefix honorificSuffix),
+      "displayName" => [],
+      "nickName" => [],
+      "profileUrl" => [],
+      "title" => [],
+      "userType" => [],
+      "preferredLanguage" => [],
+      "locale" => [],
+      "timezone" => [],
+      "active" => [],
+      "password" => [],
+      "emails" => ~w(value display type primary),
+      "phoneNumbers" => ~w(value display type primary),
+      "ims" => ~w(value display type primary),
+      "photos" => ~w(value display type primary),
+      "addresses" => ~w(formatted streetAddress locality region postalCode country type primary),
+      "groups" => ~w(value $ref display type),
+      "entitlements" => ~w(value display type primary),
+      "roles" => ~w(value display type primary),
+      "x509Certificates" => ~w(value display type primary)
+    }
+
+    @group_attributes %{
+      "displayName" => [],
+      "members" => ~w(value $ref display type)
+    }
+
     test "User schema contains all RFC 7643 core attributes" do
-      uri = "urn:ietf:params:scim:schemas:core:2.0:User"
+      assert_attributes("urn:ietf:params:scim:schemas:core:2.0:User", @user_attributes)
+    end
 
-      assert {:ok, schema} = DefaultRepository.get_schema(uri)
-      attributes = schema["attributes"]
-      attribute_names = Enum.map(attributes, fn attr -> attr["name"] end)
+    test "Group schema contains all RFC 7643 core attributes" do
+      assert_attributes("urn:ietf:params:scim:schemas:core:2.0:Group", @group_attributes)
+    end
 
-      # Core User attributes from RFC 7643 Section 4.1
-      required_attributes = [
-        "userName",
-        "name",
-        "displayName",
-        "emails",
-        "phoneNumbers",
-        "addresses",
-        "photos",
-        "active",
-        "title",
-        "userType",
-        "preferredLanguage",
-        "locale",
-        "timezone"
-      ]
+    test "User attributes carry the RFC 7643 non-default characteristics" do
+      {:ok, schema} = DefaultRepository.get_schema("urn:ietf:params:scim:schemas:core:2.0:User")
 
-      for attr_name <- required_attributes do
-        assert attr_name in attribute_names, "Missing required attribute: #{attr_name}"
+      password = find(schema["attributes"], "password")
+      assert password["mutability"] == "writeOnly"
+      assert password["returned"] == "never"
+
+      groups = find(schema["attributes"], "groups")
+      assert groups["mutability"] == "readOnly"
+      assert groups["multiValued"] == true
+      assert find(groups["subAttributes"], "value")["returned"] == "always"
+      assert find(groups["subAttributes"], "$ref")["referenceTypes"] == ["User", "Group"]
+      assert find(groups["subAttributes"], "type")["canonicalValues"] == ["direct", "indirect"]
+
+      assert find(schema["attributes"], "profileUrl")["referenceTypes"] == ["external"]
+
+      certificates = find(schema["attributes"], "x509Certificates")
+      assert find(certificates["subAttributes"], "value")["type"] == "binary"
+
+      ims = find(schema["attributes"], "ims")
+
+      assert find(ims["subAttributes"], "type")["canonicalValues"] ==
+               ~w(aim gtalk icq xmpp msn skype qq yahoo other)
+    end
+
+    test "Group members sub-attributes are immutable" do
+      {:ok, schema} = DefaultRepository.get_schema("urn:ietf:params:scim:schemas:core:2.0:Group")
+
+      members = find(schema["attributes"], "members")
+      assert members["mutability"] == "readWrite"
+
+      for sub_attr <- members["subAttributes"] do
+        assert sub_attr["mutability"] == "immutable", "members.#{sub_attr["name"]} is mutable"
       end
+
+      assert find(members["subAttributes"], "$ref")["referenceTypes"] == ["User", "Group"]
+      assert find(members["subAttributes"], "type")["canonicalValues"] == ["User", "Group"]
     end
 
     test "phoneNumbers attribute follows RFC 7643 specification" do
@@ -299,4 +346,23 @@ defmodule ExScim.Schema.Repository.RfcComplianceTest do
       [attr | sub_attrs] ++ acc
     end)
   end
+
+  defp assert_attributes(uri, expected) do
+    assert {:ok, schema} = DefaultRepository.get_schema(uri)
+
+    actual =
+      Map.new(schema["attributes"], fn attr ->
+        {attr["name"], Enum.map(attr["subAttributes"] || [], & &1["name"])}
+      end)
+
+    for {name, sub_attrs} <- expected do
+      assert Map.has_key?(actual, name), "#{uri} is missing #{name}"
+
+      for sub_attr <- sub_attrs do
+        assert sub_attr in actual[name], "#{uri} is missing #{name}.#{sub_attr}"
+      end
+    end
+  end
+
+  defp find(attributes, name), do: Enum.find(attributes, &(&1["name"] == name))
 end

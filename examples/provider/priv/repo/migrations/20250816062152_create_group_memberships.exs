@@ -3,14 +3,14 @@ defmodule Provider.Repo.Migrations.CreateGroupMemberships do
 
   def change do
     create table(:group_memberships) do
-      add(:type, :string)
-      add(:group_id, references(:groups, on_delete: :nothing))
-      add(:user_id, references(:users, on_delete: :nothing))
+      add(:group_id, references(:groups, type: :binary_id, on_delete: :delete_all), null: false)
+      add(:member_id, :binary_id, null: false)
+      add(:member_type, :string, null: false)
 
       timestamps(type: :utc_datetime)
     end
 
-    create(index(:group_memberships, [:group_id]))
-    create(index(:group_memberships, [:user_id]))
+    create(unique_index(:group_memberships, [:group_id, :member_type, :member_id]))
+    create(index(:group_memberships, [:member_type, :member_id]))
   end
 end

@@ -91,16 +91,43 @@ defmodule ExScim.Storage.Adapter do
   @callback group_exists?(group_id(), scope()) :: boolean()
 
   @doc """
-  Runs `fun` in a transaction and returns its result.
+  Runs `fun` in a transaction, rolling back on `{:error, term()}` or an exception.
 
-  Commits when `fun` returns `:ok` or `{:ok, term()}`. Rolls back and returns
-  the error when it returns `{:error, term()}`, and rolls back and re-raises
-  when it raises.
-
-  Optional. Without it, `ExScim.Storage.transaction/1` calls `fun` directly.
+  Optional. Without it, `fun` runs without a transaction.
   """
   @callback transaction(fun :: (-> result)) :: result
             when result: :ok | {:ok, term()} | {:error, term()}
 
-  @optional_callbacks transaction: 1
+  @typedoc "Resource type of a group member."
+  @type member_type :: :user | :group
+
+  @typedoc "A group member as stored: its type and SCIM `id`."
+  @type member_ref :: {member_type(), binary()}
+
+  @typedoc "A group member as loaded: its type and stored record."
+  @type member :: {:user, domain_user()} | {:group, domain_group()}
+
+  @doc "Lists the direct members of a group."
+  @callback list_members(group_id(), scope()) :: {:ok, [member()]} | {:error, term()}
+
+  @doc "Sets the direct members of a group to `members`."
+  @callback replace_members(group_id(), members :: [member_ref()], scope()) ::
+              :ok | {:error, term()}
+
+  @doc "Lists the groups that have the given user or group as a direct member."
+  @callback list_groups_for_member(member_ref(), scope()) ::
+              {:ok, [domain_group()]} | {:error, term()}
+
+  @doc """
+  Returns whether this adapter stores group memberships.
+
+  Optional. Defaults to `true` when the membership callbacks are implemented.
+  """
+  @callback memberships?() :: boolean()
+
+  @optional_callbacks transaction: 1,
+                      list_members: 2,
+                      replace_members: 3,
+                      list_groups_for_member: 2,
+                      memberships?: 0
 end

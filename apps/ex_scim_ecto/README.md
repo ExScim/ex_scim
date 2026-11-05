@@ -9,7 +9,7 @@ Add `ex_scim_ecto` to your dependencies:
 ```elixir
 def deps do
   [
-    {:ex_scim_ecto, "~> 0.5"}
+    {:ex_scim_ecto, "~> 0.6"}
   ]
 end
 ```
@@ -32,7 +32,7 @@ config :ex_scim,
 config :ex_scim,
   storage_repo: MyApp.Repo,
   user_model: {MyApp.Accounts.User, preload: [:roles, :organizations]},
-  group_model: {MyApp.Groups.Group, preload: [:members]}
+  group_model: {MyApp.Groups.Group, preload: [:owner]}
 ```
 
 ### Custom lookup key
@@ -69,6 +69,31 @@ config :ex_scim,
       "emails.type" => {:assoc, :user_emails, :type}
     }}
 ```
+
+### Group memberships
+
+Store `Group.members`, including nested groups, in one table. ExScim then
+derives `User.groups` with direct and indirect memberships:
+
+```elixir
+config :ex_scim,
+  membership_model: MyApp.Groups.Membership
+```
+
+```elixir
+create table(:group_memberships) do
+  add :group_id, references(:groups, type: :binary_id, on_delete: :delete_all)
+  add :member_id, :binary_id, null: false
+  add :member_type, :string, null: false
+end
+
+create unique_index(:group_memberships, [:group_id, :member_type, :member_id])
+create index(:group_memberships, [:member_type, :member_id])
+```
+
+`:member_type` holds `"User"` or `"Group"`. Other column names can be set with
+`{MyApp.Groups.Membership, group_key: ..., member_key: ..., type_key: ...}`.
+The group mapper doesn't handle `members` then.
 
 ### Multi-tenant scoping
 
