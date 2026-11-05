@@ -140,6 +140,40 @@ defmodule ExScim.Storage do
     end
   end
 
+  @doc "Lists the direct members of a group."
+  @impl true
+  def list_members(group_id, scope \\ nil) do
+    adapter().list_members(group_id, scope)
+  end
+
+  @doc "Sets the direct members of a group."
+  @impl true
+  def replace_members(group_id, members, scope \\ nil) do
+    adapter().replace_members(group_id, members, scope)
+  end
+
+  @doc "Lists the groups that have the given user or group as a direct member."
+  @impl true
+  def list_groups_for_member(member_ref, scope \\ nil) do
+    adapter().list_groups_for_member(member_ref, scope)
+  end
+
+  @doc """
+  Returns whether the configured adapter stores group memberships.
+
+  See `c:ExScim.Storage.Adapter.list_members/2`.
+  """
+  @impl true
+  def memberships? do
+    adapter = adapter()
+
+    Code.ensure_loaded?(adapter) and
+      function_exported?(adapter, :list_members, 2) and
+      function_exported?(adapter, :replace_members, 3) and
+      function_exported?(adapter, :list_groups_for_member, 2) and
+      (not function_exported?(adapter, :memberships?, 0) or adapter.memberships?())
+  end
+
   @doc """
   Returns the configured storage adapter module.
 

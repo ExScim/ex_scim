@@ -38,13 +38,42 @@ defmodule Provider.Scim.Schemas.User do
     end
 
     attribute(:active, :boolean, description: "A Boolean value indicating the User's status")
+
+    attribute :groups, :complex,
+      multi_valued: true,
+      description: "A list of groups to which the user belongs",
+      mutability: :read_only do
+      sub_attribute(:value, :string,
+        description: "The identifier of the User's group",
+        mutability: :immutable,
+        returned: :always
+      )
+
+      sub_attribute(:"$ref", :reference,
+        description: "The URI of the corresponding 'Group' resource",
+        reference_types: ["User", "Group"],
+        mutability: :immutable,
+        returned: :always
+      )
+
+      sub_attribute(:display, :string,
+        description: "A human readable name, primarily used for display purposes",
+        mutability: :immutable
+      )
+
+      sub_attribute(:type, :string,
+        description: "The type of group membership",
+        canonical_values: ["direct", "indirect"],
+        mutability: :immutable
+      )
+    end
   end
 end
 
 defmodule Provider.Scim.Schemas.Group do
   @moduledoc """
-  SCIM Group schema limited to the attributes `Provider.Scim.GroupMapper` stores.
-  Members are listed but can't be written through SCIM.
+  SCIM Group schema limited to the attributes `Provider.Scim.GroupMapper` stores,
+  plus `members`, which ExScim stores.
   """
 
   use ExScim.Schema.Builder
@@ -60,28 +89,27 @@ defmodule Provider.Scim.Schemas.Group do
 
     attribute :members, :complex,
       multi_valued: true,
-      description: "A list of members of the Group",
-      mutability: :read_only do
+      description: "A list of members of the Group" do
       sub_attribute(:value, :string,
         description: "Identifier of the member of this Group",
-        mutability: :read_only
+        mutability: :immutable
       )
 
       sub_attribute(:display, :string,
         description: "A human-readable name of the member",
-        mutability: :read_only
+        mutability: :immutable
       )
 
       sub_attribute(:"$ref", :reference,
         description: "The URI corresponding to a SCIM resource that is a member",
         reference_types: ["User", "Group"],
-        mutability: :read_only
+        mutability: :immutable
       )
 
       sub_attribute(:type, :string,
         description: "A label indicating the type of resource",
         canonical_values: ["User", "Group"],
-        mutability: :read_only
+        mutability: :immutable
       )
     end
   end

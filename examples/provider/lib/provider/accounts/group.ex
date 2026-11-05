@@ -1,7 +1,6 @@
 defmodule Provider.Accounts.Group do
   use Ecto.Schema
   import Ecto.Changeset
-  alias Provider.Accounts.User
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -12,8 +11,6 @@ defmodule Provider.Accounts.Group do
     field(:external_id, :string)
     field(:meta_created, :utc_datetime_usec)
     field(:meta_last_modified, :utc_datetime_usec)
-
-    many_to_many(:users, User, join_through: "group_memberships")
 
     timestamps(type: :utc_datetime)
   end

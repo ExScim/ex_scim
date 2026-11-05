@@ -27,6 +27,7 @@ All options are set under `config :ex_scim`.
 | `:storage_repo` | *required* | Your Ecto `Repo` module |
 | `:user_model` | *required* | Ecto schema module or `{Schema, opts}` tuple |
 | `:group_model` | *required* | Same format as `:user_model` |
+| `:membership_model` | `nil` | Ecto schema storing group memberships, or `{Schema, opts}` |
 
 When using the `{Schema, opts}` tuple form, available sub-options are:
 
@@ -51,11 +52,20 @@ config :ex_scim,
          fn true -> "active"; false -> "inactive" end,
          fn "active" -> true; _ -> false end}
      }},
-  group_model:
-    {MyApp.Groups.Group,
-     preload: [:members],
-     tenant_key: :organization_id}
+  group_model: {MyApp.Groups.Group, tenant_key: :organization_id},
+  membership_model: MyApp.Groups.Membership
 ```
+
+### Group Memberships
+
+Adapters that implement the membership callbacks of `ExScim.Storage.Adapter` store `members` and derive `User.groups`.
+
+- Members are users or groups.
+- Unknown members and cycles return `400 invalidValue`.
+- `User.groups` lists memberships as `direct` or `indirect`.
+- Deleting a user or group removes its memberships.
+
+`ExScim.Storage.EtsStorage` supports memberships, and `ExScimEcto.StorageAdapter` does when `:membership_model` is set.
 
 ### Capabilities
 

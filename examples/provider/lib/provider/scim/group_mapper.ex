@@ -1,12 +1,13 @@
 defmodule Provider.Scim.GroupMapper do
   @moduledoc """
   Maps between SCIM format and Provider.Accounts.Group domain struct.
+
+  `members` are stored by ExScim through `Provider.Accounts.GroupMembership`.
   """
 
   use ExScim.Groups.Mapper.Adapter
 
   alias Provider.Accounts.Group
-  alias ExScim.Config
 
   @impl true
   def from_scim(scim_data, _caller) do
@@ -29,23 +30,7 @@ defmodule Provider.Scim.GroupMapper do
        "displayName" => group.display_name,
        "description" => group.description,
        "active" => group.active,
-       "members" => format_members(group),
        "meta" => format_meta(group, Keyword.put(opts, :resource_type, "Group"))
      }}
   end
-
-  # Domain-specific helper
-
-  defp format_members(%Group{users: users}) when is_list(users) do
-    Enum.map(users, fn user ->
-      %{
-        "value" => user.id,
-        "display" => user.display_name || user.user_name,
-        "$ref" => Config.resource_url("Users", user.id),
-        "type" => "User"
-      }
-    end)
-  end
-
-  defp format_members(_), do: []
 end

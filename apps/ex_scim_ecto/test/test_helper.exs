@@ -20,6 +20,7 @@ if :db in ExUnit.configuration()[:include] do
 
   alias Ecto.Adapters.SQL
 
+  SQL.query!(ExScimEcto.TestRepo, "DROP TABLE IF EXISTS group_memberships", [])
   SQL.query!(ExScimEcto.TestRepo, "DROP TABLE IF EXISTS user_emails", [])
   SQL.query!(ExScimEcto.TestRepo, "DROP TABLE IF EXISTS users", [])
   SQL.query!(ExScimEcto.TestRepo, "DROP TABLE IF EXISTS groups", [])
@@ -71,6 +72,19 @@ if :db in ExUnit.configuration()[:include] do
       organization_id text,
       inserted_at timestamp(0) NOT NULL DEFAULT now(),
       updated_at timestamp(0) NOT NULL DEFAULT now()
+    )
+    """,
+    []
+  )
+
+  SQL.query!(
+    ExScimEcto.TestRepo,
+    """
+    CREATE TABLE group_memberships (
+      id bigserial PRIMARY KEY,
+      group_id text REFERENCES groups(id) ON DELETE CASCADE,
+      member_id text NOT NULL,
+      member_type text NOT NULL
     )
     """,
     []

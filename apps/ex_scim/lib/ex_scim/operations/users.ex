@@ -8,6 +8,7 @@ defmodule ExScim.Operations.Users do
   """
 
   alias ExScim.Config
+  alias ExScim.Groups.Membership
   alias ExScim.Lifecycle
   alias ExScim.Resources.IdGenerator
   alias ExScim.Resources.Metadata
@@ -58,7 +59,8 @@ defmodule ExScim.Operations.Users do
   """
   def create_user_from_scim(scim_data, scope) do
     with {:ok, schema_validated_data} <- Validator.validate_scim_schema(scim_data),
-         {:ok, mapped_data} <- Mapper.from_scim(schema_validated_data, scope),
+         {:ok, mapped_data} <-
+           Mapper.from_scim(Membership.drop_groups(schema_validated_data), scope),
          data_with_id <- maybe_set_id(mapped_data),
          data_with_metadata <- Metadata.update_metadata(data_with_id, "User"),
          {:ok, hooked_data} <- Lifecycle.before_create(:user, data_with_metadata, scope),
@@ -83,7 +85,8 @@ defmodule ExScim.Operations.Users do
   def replace_user_from_scim(user_id, scim_data, scope) do
     with {:ok, existing_user} <- Storage.get_user(user_id, scope),
          {:ok, schema_validated_data} <- Validator.validate_scim_schema(scim_data),
-         {:ok, user_struct} <- Mapper.from_scim(schema_validated_data, scope),
+         {:ok, user_struct} <-
+           Mapper.from_scim(Membership.drop_groups(schema_validated_data), scope),
          user_with_id <- Resource.set_id(user_struct, user_id),
          user_with_created <-
            Map.put(user_with_id, :meta_created, Map.get(existing_user, :meta_created)),
@@ -116,9 +119,10 @@ defmodule ExScim.Operations.Users do
     with {:ok, patch_ops} <- PatchValidator.validate(scim_data, "User"),
          {:ok, existing_user} <- Storage.get_user(user_id, scope),
          {:ok, current} <- Mapper.to_scim(existing_user, scope),
+         {:ok, current} <- Membership.put_groups(current, user_id, scope),
          {:ok, patch_ops} <- PatchValidator.validate_changes(patch_ops, current, "User"),
          {:ok, patched} <- Patcher.patch(current, patch_ops),
-         {:ok, user_struct} <- Mapper.from_scim(patched, scope),
+         {:ok, user_struct} <- Mapper.from_scim(Membership.drop_groups(patched), scope),
          user_with_id <- Resource.set_id(user_struct, user_id),
          user_with_created <-
            Map.put(user_with_id, :meta_created, Map.get(existing_user, :meta_created)),
@@ -160,20 +164,28 @@ defmodule ExScim.Operations.Users do
 
   defp delete(user_id, scope) do
     Storage.transaction(fn ->
-      with :ok <- Storage.delete_user(user_id, scope) do
+      with :ok <- Membership.remove_member({:user, user_id}, scope),
+           :ok <- Storage.delete_user(user_id, scope) do
         Lifecycle.before_commit(:delete, :user, user_id, scope)
       end
     end)
   end
 
   defp to_scim(user, scope, base_url \\ nil) do
-    case Resource.get_id(user) do
-      nil ->
-        Mapper.to_scim(user, scope)
+    id = Resource.get_id(user)
 
-      id ->
-        base_url = base_url || Config.scim_base_url(scope)
-        Mapper.to_scim(user, scope, location: "#{base_url}/Users/#{id}")
+    mapped =
+      case id do
+        nil ->
+          Mapper.to_scim(user, scope)
+
+        id ->
+          base_url = base_url || Config.scim_base_url(scope)
+          Mapper.to_scim(user, scope, location: "#{base_url}/Users/#{id}")
+      end
+
+    with {:ok, scim_user} <- mapped do
+      Membership.put_groups(scim_user, id, scope)
     end
   end
 

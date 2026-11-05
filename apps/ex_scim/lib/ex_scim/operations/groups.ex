@@ -8,6 +8,7 @@ defmodule ExScim.Operations.Groups do
   """
 
   alias ExScim.Groups.Mapper
+  alias ExScim.Groups.Membership
   alias ExScim.Groups.Patcher
   alias ExScim.Config
   alias ExScim.Lifecycle
@@ -58,12 +59,13 @@ defmodule ExScim.Operations.Groups do
   """
   def create_group_from_scim(scim_data, scope) do
     with {:ok, schema_validated_data} <- Validator.validate_scim_schema(scim_data),
-         {:ok, mapped_data} <- Mapper.from_scim(schema_validated_data, scope),
+         {members, group_data} = Membership.split(schema_validated_data),
+         {:ok, mapped_data} <- Mapper.from_scim(group_data, scope),
          data_with_id <- maybe_set_id(mapped_data),
          data_with_metadata <- Metadata.update_metadata(data_with_id, "Group"),
          {:ok, hooked_data} <- Lifecycle.before_create(:group, data_with_metadata, scope),
          {:ok, stored_group} <-
-           store(:create, scope, fn -> Storage.create_group(hooked_data, scope) end),
+           store(:create, scope, members, fn -> Storage.create_group(hooked_data, scope) end),
          {:ok, scim_group} <- to_scim(stored_group, scope) do
       Lifecycle.after_create(:group, scim_group, scope)
       {:ok, scim_group}
@@ -83,7 +85,8 @@ defmodule ExScim.Operations.Groups do
   def replace_group_from_scim(group_id, scim_data, scope) do
     with {:ok, existing_group} <- Storage.get_group(group_id, scope),
          {:ok, schema_validated_data} <- Validator.validate_scim_schema(scim_data),
-         {:ok, group_struct} <- Mapper.from_scim(schema_validated_data, scope),
+         {members, group_data} = Membership.split(schema_validated_data),
+         {:ok, group_struct} <- Mapper.from_scim(group_data, scope),
          group_with_id <- Resource.set_id(group_struct, group_id),
          group_with_created <-
            Map.put(group_with_id, :meta_created, Map.get(existing_group, :meta_created)),
@@ -91,7 +94,9 @@ defmodule ExScim.Operations.Groups do
          {:ok, hooked_data} <-
            Lifecycle.before_replace(:group, group_id, group_with_meta, scope),
          {:ok, stored_group} <-
-           store(:replace, scope, fn -> Storage.replace_group(group_id, hooked_data, scope) end),
+           store(:replace, scope, members, fn ->
+             Storage.replace_group(group_id, hooked_data, scope)
+           end),
          {:ok, scim_group} <- to_scim(stored_group, scope) do
       Lifecycle.after_replace(:group, scim_group, scope)
       {:ok, scim_group}
@@ -117,9 +122,11 @@ defmodule ExScim.Operations.Groups do
     with {:ok, patch_ops} <- PatchValidator.validate(scim_data, "Group"),
          {:ok, existing_group} <- Storage.get_group(group_id, scope),
          {:ok, current} <- Mapper.to_scim(existing_group, scope),
+         {:ok, current} <- Membership.put_members(current, group_id, scope),
          {:ok, patch_ops} <- PatchValidator.validate_changes(patch_ops, current, "Group"),
          {:ok, patched} <- Patcher.patch(current, patch_ops),
-         {:ok, group_struct} <- Mapper.from_scim(patched, scope),
+         {members, group_data} = Membership.split(patched, current),
+         {:ok, group_struct} <- Mapper.from_scim(group_data, scope),
          group_with_id <- Resource.set_id(group_struct, group_id),
          group_with_created <-
            Map.put(group_with_id, :meta_created, Map.get(existing_group, :meta_created)),
@@ -127,7 +134,9 @@ defmodule ExScim.Operations.Groups do
          {:ok, hooked_data} <-
            Lifecycle.before_patch(:group, group_id, group_with_meta, scope),
          {:ok, stored_group} <-
-           store(:patch, scope, fn -> Storage.update_group(group_id, hooked_data, scope) end),
+           store(:patch, scope, members, fn ->
+             Storage.update_group(group_id, hooked_data, scope)
+           end),
          {:ok, scim_group} <- to_scim(stored_group, scope) do
       Lifecycle.after_patch(:group, scim_group, scope)
       {:ok, scim_group}
@@ -151,9 +160,10 @@ defmodule ExScim.Operations.Groups do
     end
   end
 
-  defp store(operation, scope, write) do
+  defp store(operation, scope, members, write) do
     Storage.transaction(fn ->
       with {:ok, stored} <- write.(),
+           :ok <- Membership.replace(Resource.get_id(stored), members, scope),
            :ok <- Lifecycle.before_commit(operation, :group, stored, scope) do
         {:ok, stored}
       end
@@ -162,20 +172,28 @@ defmodule ExScim.Operations.Groups do
 
   defp delete(group_id, scope) do
     Storage.transaction(fn ->
-      with :ok <- Storage.delete_group(group_id, scope) do
+      with :ok <- Membership.remove_group(group_id, scope),
+           :ok <- Storage.delete_group(group_id, scope) do
         Lifecycle.before_commit(:delete, :group, group_id, scope)
       end
     end)
   end
 
   defp to_scim(group, scope, base_url \\ nil) do
-    case Resource.get_id(group) do
-      nil ->
-        Mapper.to_scim(group, scope)
+    id = Resource.get_id(group)
 
-      id ->
-        base_url = base_url || Config.scim_base_url(scope)
-        Mapper.to_scim(group, scope, location: "#{base_url}/Groups/#{id}")
+    mapped =
+      case id do
+        nil ->
+          Mapper.to_scim(group, scope)
+
+        id ->
+          base_url = base_url || Config.scim_base_url(scope)
+          Mapper.to_scim(group, scope, location: "#{base_url}/Groups/#{id}")
+      end
+
+    with {:ok, scim_group} <- mapped do
+      Membership.put_members(scim_group, id, scope)
     end
   end
 
