@@ -2,13 +2,27 @@ defmodule ExScimClient.ModelTest do
   use ExUnit.Case, async: true
 
   alias ExScimClient.Deserializer
-
-  alias ExScimClient.Model.Core.{Group, ResourceType, Schema, ServiceProviderConfig, User}
-  alias ExScimClient.Model.Infrastructure.{AuthenticationScheme, Meta, SchemaAttribute, Uri}
-  alias ExScimClient.Model.Operations.{PatchOperation, PatchOperationValue, PatchRequest}
-  alias ExScimClient.Model.References.{GroupMemberRef, ManagerRef, MemberRef}
-  alias ExScimClient.Model.Bulk.{BulkOperationResult, BulkResponse}
-  alias ExScimClient.Model.UserAttributes.{Email, EnterpriseUser, Name, Photo}
+  alias ExScimClient.Model.Bulk.BulkOperationResult
+  alias ExScimClient.Model.Bulk.BulkResponse
+  alias ExScimClient.Model.Core.Group
+  alias ExScimClient.Model.Core.ResourceType
+  alias ExScimClient.Model.Core.Schema
+  alias ExScimClient.Model.Core.ServiceProviderConfig
+  alias ExScimClient.Model.Core.User
+  alias ExScimClient.Model.Infrastructure.AuthenticationScheme
+  alias ExScimClient.Model.Infrastructure.Meta
+  alias ExScimClient.Model.Infrastructure.SchemaAttribute
+  alias ExScimClient.Model.Infrastructure.Uri
+  alias ExScimClient.Model.Operations.PatchOperation
+  alias ExScimClient.Model.Operations.PatchOperationValue
+  alias ExScimClient.Model.Operations.PatchRequest
+  alias ExScimClient.Model.References.GroupMemberRef
+  alias ExScimClient.Model.References.ManagerRef
+  alias ExScimClient.Model.References.MemberRef
+  alias ExScimClient.Model.UserAttributes.Email
+  alias ExScimClient.Model.UserAttributes.EnterpriseUser
+  alias ExScimClient.Model.UserAttributes.Name
+  alias ExScimClient.Model.UserAttributes.Photo
 
   @models [
     ExScimClient.Model.Bulk.BulkOperation,

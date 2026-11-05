@@ -3,7 +3,9 @@ defmodule ExScimClient.Resources.DiscoveryTest do
   use ExUnit.Case, async: false
 
   alias ExScimClient.Client
-  alias ExScimClient.Resources.{Schemas, ResourceTypes, ServiceProviderConfig}
+  alias ExScimClient.Resources.ResourceTypes
+  alias ExScimClient.Resources.Schemas
+  alias ExScimClient.Resources.ServiceProviderConfig
 
   @stub ExScimClient.Stub
   @user_schema "urn:ietf:params:scim:schemas:core:2.0:User"

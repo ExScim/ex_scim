@@ -4,10 +4,11 @@ defmodule ExScimEcto.StorageAdapterTest do
   # Requires a live Postgres; excluded by default. Run with: mix test --include db
   @moduletag :db
 
+  alias ExScim.Scope
   alias ExScimEcto.StorageAdapter
   alias ExScimEcto.TestRepo
-  alias ExScimEcto.TestSupport.{User, UserEmail}
-  alias ExScim.Scope
+  alias ExScimEcto.TestSupport.User
+  alias ExScimEcto.TestSupport.UserEmail
 
   setup do
     :ok = Ecto.Adapters.SQL.Sandbox.checkout(TestRepo)
