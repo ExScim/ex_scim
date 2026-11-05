@@ -3,10 +3,10 @@ defmodule ExScimPhoenix.Test.TestStorage do
   Agent-backed storage adapter for controller pipeline tests.
 
   Mirrors the adapter used in `ExScim.Operations.{Users,Groups}Test`: it stores
-  the atom-keyed domain maps produced by the Operations layer, which the real
-  `EtsStorage` adapter does not round-trip (string vs atom keys). Supports the
-  full `ExScim.Storage.Adapter` behaviour for both users and groups, including
-  filter and pagination so list endpoints behave realistically.
+  the domain maps produced by the Operations layer as-is. Supports the
+  `ExScim.Storage.Adapter` callbacks for users and groups, including filter and
+  pagination so list endpoints behave realistically. Memberships are not
+  stored, so `members` go through the group mapper.
   """
 
   @behaviour ExScim.Storage.Adapter
@@ -69,7 +69,7 @@ defmodule ExScimPhoenix.Test.TestStorage do
 
   defp username_taken?(user_name) do
     Agent.get(__MODULE__, &Map.values(&1.users))
-    |> Enum.any?(&(Map.get(&1, :user_name) == user_name))
+    |> Enum.any?(&(Map.get(&1, "userName") == user_name))
   end
 
   @impl true
@@ -130,7 +130,7 @@ defmodule ExScimPhoenix.Test.TestStorage do
 
   defp display_name_taken?(display_name) do
     Agent.get(__MODULE__, &Map.values(&1.groups))
-    |> Enum.any?(&(Map.get(&1, :display_name) == display_name))
+    |> Enum.any?(&(Map.get(&1, "displayName") == display_name))
   end
 
   @impl true
@@ -162,9 +162,6 @@ defmodule ExScimPhoenix.Test.TestStorage do
     match?({:ok, _}, get_group(group_id))
   end
 
-  # Filtering is expressed in SCIM attribute names (e.g. "userName"), but stored
-  # records are atom-keyed domain maps (e.g. :user_name). Map each record to its
-  # SCIM form before evaluating the filter, then keep the matching domain records.
   defp paginate(records, filter_ast, pagination_opts, mapper, scope) do
     filtered =
       case filter_ast do

@@ -2,55 +2,39 @@ defmodule ExScim.Groups.Mapper.DefaultMapperTest do
   use ExUnit.Case, async: true
 
   alias ExScim.Groups.Mapper.DefaultMapper
-  alias ExScim.Groups.Group
 
   @group_schema "urn:ietf:params:scim:schemas:core:2.0:Group"
 
   describe "from_scim/2" do
-    test "maps a full SCIM group to an atom-keyed domain map" do
+    test "keeps the SCIM attributes and drops server-assigned ones" do
       scim = %{
         "id" => "g1",
         "externalId" => "ext-1",
         "displayName" => "Engineering",
         "members" => [%{"value" => "u1", "display" => "Alice"}],
         "schemas" => [@group_schema],
-        "meta" => %{
-          "created" => "2024-01-01T00:00:00Z",
-          "lastModified" => "2024-01-02T00:00:00Z"
-        }
+        "meta" => %{"created" => "2024-01-01T00:00:00Z"}
       }
 
       assert {:ok, domain} = DefaultMapper.from_scim(scim, nil)
-      assert domain.id == "g1"
-      assert domain.external_id == "ext-1"
-      assert domain.display_name == "Engineering"
-      assert domain.members == [%{"value" => "u1", "display" => "Alice"}]
-      assert domain.schemas == [@group_schema]
-      assert %DateTime{} = domain.meta_created
-      assert %DateTime{} = domain.meta_last_modified
-    end
 
-    test "applies defaults for a minimal group" do
-      assert {:ok, domain} = DefaultMapper.from_scim(%{"displayName" => "Eng"}, nil)
-
-      assert domain.display_name == "Eng"
-      assert domain.id == nil
-      assert domain.external_id == nil
-      assert domain.members == []
-      assert domain.schemas == [@group_schema]
-      assert domain.meta_created == nil
-      assert domain.meta_last_modified == nil
+      assert domain == %{
+               "externalId" => "ext-1",
+               "displayName" => "Engineering",
+               "members" => [%{"value" => "u1", "display" => "Alice"}],
+               "schemas" => [@group_schema]
+             }
     end
   end
 
   describe "to_scim/3" do
-    test "maps a full domain group to SCIM JSON" do
+    test "returns the SCIM attributes with id and meta" do
       domain = %{
-        id: "g1",
-        external_id: "ext-1",
-        display_name: "Engineering",
-        members: [%{"value" => "u1"}],
-        schemas: [@group_schema],
+        "id" => "g1",
+        "externalId" => "ext-1",
+        "displayName" => "Engineering",
+        "members" => [%{"value" => "u1"}],
+        "schemas" => [@group_schema],
         meta_created: ~U[2024-01-01 00:00:00Z],
         meta_last_modified: ~U[2024-01-02 00:00:00Z]
       }
@@ -65,31 +49,23 @@ defmodule ExScim.Groups.Mapper.DefaultMapperTest do
       assert scim["meta"]["lastModified"] == "2024-01-02T00:00:00Z"
       assert scim["meta"]["resourceType"] == "Group"
       assert scim["meta"]["version"] =~ ~r/^W\//
+      refute Map.has_key?(scim, :meta_created)
     end
 
-    test "strips nil values and defaults members/schemas for a minimal group" do
-      assert {:ok, scim} = DefaultMapper.to_scim(%{display_name: "Eng"}, nil)
+    test "defaults schemas and strips nil values" do
+      assert {:ok, scim} =
+               DefaultMapper.to_scim(%{"displayName" => "Eng", "externalId" => nil}, nil)
 
       assert scim["displayName"] == "Eng"
-      assert scim["members"] == []
       assert scim["schemas"] == [@group_schema]
       refute Map.has_key?(scim, "id")
       refute Map.has_key?(scim, "externalId")
       assert scim["meta"]["resourceType"] == "Group"
     end
 
-    test "accepts a Group struct as input" do
-      group = %Group{id: "g1", display_name: "Engineering", members: []}
-
-      assert {:ok, scim} = DefaultMapper.to_scim(group, nil)
-      assert scim["id"] == "g1"
-      assert scim["displayName"] == "Engineering"
-      assert scim["schemas"] == [@group_schema]
-    end
-
     test "includes meta.location when a :location opt is given" do
       assert {:ok, scim} =
-               DefaultMapper.to_scim(%{display_name: "Eng"}, nil,
+               DefaultMapper.to_scim(%{"displayName" => "Eng"}, nil,
                  location: "https://example.com/scim/v2/Groups/g1"
                )
 

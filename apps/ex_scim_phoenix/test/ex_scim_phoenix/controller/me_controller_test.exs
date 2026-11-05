@@ -180,16 +180,16 @@ defmodule ExScimPhoenix.Controller.MeControllerTest do
 
   # Seed a user whose id matches token-me's scope id, via POST /Users with token-all.
   defp seed_me_user! do
-    payload = %{
-      "id" => @me_id,
-      "schemas" => [@user_schema],
-      "userName" => "me.user",
-      "name" => %{"givenName" => "Me", "familyName" => "User"},
-      "active" => true
-    }
+    {:ok, user} =
+      TestStorage.create_user(%{
+        "id" => @me_id,
+        "schemas" => [@user_schema],
+        "userName" => "me.user",
+        "name" => %{"givenName" => "Me", "familyName" => "User"},
+        "active" => true
+      })
 
-    conn = post(authed("token-all"), "/Users", payload)
-    json_response(conn, 201)
+    user
   end
 
   defp restore(key, nil), do: Application.delete_env(:ex_scim, key)

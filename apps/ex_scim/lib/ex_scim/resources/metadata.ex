@@ -76,11 +76,9 @@ defmodule ExScim.Resources.Metadata do
     "W/\"#{hash}\""
   end
 
-  defp maybe_set_created(%{meta_created: nil} = resource, now) do
-    Map.put(resource, :meta_created, now)
+  defp maybe_set_created(resource, now) do
+    if Map.get(resource, :meta_created), do: resource, else: Map.put(resource, :meta_created, now)
   end
-
-  defp maybe_set_created(resource, _now), do: resource
 
   defp maybe_set_resource_type(resource, nil), do: resource
 

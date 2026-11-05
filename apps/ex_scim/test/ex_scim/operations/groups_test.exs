@@ -153,11 +153,11 @@ defmodule ExScim.Operations.GroupsTest do
       assert String.match?(scim_group["id"], ~r/^[0-9a-f-]{36}$/)
     end
 
-    test "preserves caller-supplied ID" do
+    test "ignores a caller-supplied ID" do
       scim_data = valid_scim_group_attrs() |> Map.put("id", "custom-group-123")
 
       assert {:ok, scim_group} = Groups.create_group_from_scim(scim_data, @scope)
-      assert scim_group["id"] == "custom-group-123"
+      assert scim_group["id"] != "custom-group-123"
     end
 
     test "sets metadata timestamps" do
@@ -558,9 +558,9 @@ defmodule ExScim.Operations.GroupsTest do
       :ok = Groups.delete_group(id, @scope)
 
       assert [
-               {:create, :group, %{id: ^id}, @scope},
-               {:replace, :group, %{id: ^id, display_name: "Replaced"}, @scope},
-               {:patch, :group, %{id: ^id, display_name: "Patched"}, @scope},
+               {:create, :group, %{"id" => ^id}, @scope},
+               {:replace, :group, %{"id" => ^id, "displayName" => "Replaced"}, @scope},
+               {:patch, :group, %{"id" => ^id, "displayName" => "Patched"}, @scope},
                {:delete, :group, ^id, @scope}
              ] = for({:before_commit, args} <- Process.get(:lifecycle_calls, []), do: args)
     end
